@@ -10,6 +10,7 @@ const defaultNoteCells = () => Array.from({ length: 32 }, () => ({ state: 'empty
 const createGroupId = () => `group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const savedPhrases = JSON.parse(localStorage.getItem('solfejo-phrases') || 'null');
 const phrases = savedPhrases?.length ? savedPhrases.map(normalizePhrase) : [createDefaultPhrase()];
+const selectedPhraseIndexes = new Set();
 
 const phrasesElement = document.querySelector('#phrases');
 const titleInput = document.querySelector('#titleInput');
@@ -239,6 +240,19 @@ function renderPhrase(phrase, phraseIndex) {
   phraseHeader.className = 'phrase-header';
   const phraseActions = document.createElement('div');
   phraseActions.className = 'phrase-header-actions';
+  const selectionLabel = document.createElement('div');
+  selectionLabel.className = 'phrase-selection';
+  selectionLabel.title = 'Selecionar frase para agrupar';
+  const selectionCheckbox = document.createElement('input');
+  selectionCheckbox.type = 'checkbox';
+  selectionCheckbox.checked = selectedPhraseIndexes.has(phraseIndex);
+  selectionCheckbox.setAttribute('aria-label', `Selecionar frase ${phraseIndex + 1}`);
+  selectionCheckbox.addEventListener('change', () => {
+    if (selectionCheckbox.checked) selectedPhraseIndexes.add(phraseIndex);
+    else selectedPhraseIndexes.delete(phraseIndex);
+    updateGroupSelectedButton();
+  });
+  selectionLabel.append(selectionCheckbox);
   const deleteButton = document.createElement('button');
   deleteButton.className = 'delete-phrase-button';
   deleteButton.type = 'button';
@@ -267,31 +281,25 @@ function renderPhrase(phrase, phraseIndex) {
     render();
     save();
   });
-  const groupButton = document.createElement('button');
-  groupButton.className = 'group-phrase-button';
-  groupButton.type = 'button';
-  groupButton.setAttribute('aria-label', phrase.groupId ? `Desagrupar frase ${phraseIndex + 1}` : `Agrupar frase ${phraseIndex + 1} com a anterior`);
-  groupButton.title = phrase.groupId ? 'Desagrupar frase' : 'Agrupar com a frase anterior';
-  groupButton.innerHTML = `<span aria-hidden="true">${phrase.groupId ? '↗' : '↘'}</span>`;
-  groupButton.disabled = phraseIndex === 0;
-  groupButton.addEventListener('click', () => {
-    if (phraseIndex === 0) return;
-    const previous = phrases[phraseIndex - 1];
-    if (phrase.groupId && phrase.groupId === previous.groupId) {
+  let ungroupButton = null;
+  if (phrase.groupId) {
+    ungroupButton = document.createElement('button');
+    ungroupButton.className = 'ungroup-phrase-button';
+    ungroupButton.type = 'button';
+    ungroupButton.setAttribute('aria-label', `Retirar frase ${phraseIndex + 1} do grupo`);
+    ungroupButton.title = 'Retirar do grupo';
+    ungroupButton.innerHTML = '<span aria-hidden="true">↗</span>';
+    ungroupButton.addEventListener('click', () => {
       phrase.groupId = null;
       phrase.groupTitle = '';
-    } else {
-      const groupId = previous.groupId || createGroupId();
-      previous.groupId = groupId;
-      previous.groupTitle = previous.groupTitle || 'Grupo de frases';
-      phrase.groupId = groupId;
-      phrase.groupTitle = previous.groupTitle;
-    }
-    render();
-    save();
-  });
-  phraseActions.append(beatSelect, paletteButton, duplicateButton, groupButton, deleteButton);
-  phraseHeader.append(modeSelect, phraseTitleWrap, phraseActions);
+      render();
+      save();
+    });
+  }
+  phraseActions.append(beatSelect, paletteButton, duplicateButton);
+  if (ungroupButton) phraseActions.append(ungroupButton);
+  phraseActions.append(deleteButton);
+  phraseHeader.append(selectionLabel, modeSelect, phraseTitleWrap, phraseActions);
   phraseElement.append(phraseHeader, paletteDialog);
   if (upperHint) phraseElement.append(upperHint);
   phraseElement.append(notation);
@@ -311,6 +319,9 @@ function applyPhrasePalette(phraseElement, palette, phraseIndex = 0) {
 }
 
 function render() {
+  const groupButton = document.querySelector('#groupSelectedButton');
+  if (groupButton) document.querySelector('.sheet-toolbar')?.append(groupButton);
+  normalizeGroups();
   const rendered = [];
   let index = 0;
   while (index < phrases.length) {
@@ -345,7 +356,10 @@ function render() {
     const groupContent = document.createElement('div');
     groupContent.className = 'group-content';
     groupContent.append(...groupPhrases.map(({ phrase: groupedPhrase, index: groupedIndex }) => renderPhrase(groupedPhrase, groupedIndex)));
-    group.append(groupTitle, printGroupTitle, groupContent);
+    const groupHeading = document.createElement('div');
+    groupHeading.className = 'group-heading';
+    groupHeading.append(groupTitle, printGroupTitle);
+    group.append(groupHeading, groupContent);
     group.style.setProperty('--phrase-bg', 'transparent');
     rendered.push(group);
   }
@@ -359,6 +373,34 @@ function render() {
   document.querySelectorAll('.cell-input.upper').forEach((input) => input.style.color = colors.upper);
   document.querySelectorAll('.cell-input.lower').forEach((input) => input.style.color = colors.lower);
   document.querySelectorAll('.phrase').forEach((phraseElement, index) => applyPhrasePalette(phraseElement, phrases[index].palette, index));
+  updateGroupSelectedButton();
+}
+
+function normalizeGroups() {
+  const counts = new Map();
+  phrases.forEach((phrase) => {
+    if (phrase.groupId) counts.set(phrase.groupId, (counts.get(phrase.groupId) || 0) + 1);
+  });
+  phrases.forEach((phrase) => {
+    if (phrase.groupId && counts.get(phrase.groupId) < 2) {
+      phrase.groupId = null;
+      phrase.groupTitle = '';
+    }
+  });
+}
+
+function updateGroupSelectedButton() {
+  const button = document.querySelector('#groupSelectedButton');
+  if (!button) return;
+  const checked = [...document.querySelectorAll('.phrase-selection input:checked')];
+  const lastChecked = checked[checked.length - 1];
+  if (selectedPhraseIndexes.size < 2 || !lastChecked) {
+    button.hidden = true;
+    document.querySelector('.sheet-toolbar')?.append(button);
+    return;
+  }
+  button.hidden = false;
+  lastChecked.parentElement.append(button);
 }
 
 function escapeAttribute(value) {
@@ -375,6 +417,29 @@ window.addEventListener('afterprint', () => { document.title = originalDocumentT
 document.querySelector('#printButton').addEventListener('click', () => window.print());
 document.querySelector('#addPhraseButton').addEventListener('click', () => {
   phrases.push({ ...createDefaultPhrase(), cells: createDefaultPhrase().cells.map((cell) => ({ ...cell, upper: '', lower: '' })) });
+  render();
+  save();
+});
+document.querySelector('#groupSelectedButton').addEventListener('click', () => {
+  if (selectedPhraseIndexes.size < 2) return;
+  const selectedIndexes = [...selectedPhraseIndexes].sort((first, second) => first - second);
+  const selectedGroupIds = new Set(selectedIndexes.map((index) => phrases[index].groupId).filter(Boolean));
+  const indexesToGroup = new Set(selectedIndexes);
+  phrases.forEach((phrase, index) => {
+    if (phrase.groupId && selectedGroupIds.has(phrase.groupId)) indexesToGroup.add(index);
+  });
+  const indexesInOrder = [...indexesToGroup].sort((first, second) => first - second);
+  const selected = indexesInOrder.map((index) => phrases[index]);
+  const firstIndex = indexesInOrder[0];
+  const groupId = selectedGroupIds.values().next().value || createGroupId();
+  selected.forEach((phrase) => {
+    phrase.groupId = groupId;
+    phrase.groupTitle = 'Grupo de frases';
+  });
+  const remaining = phrases.filter((_, index) => !indexesToGroup.has(index));
+  remaining.splice(firstIndex, 0, ...selected);
+  phrases.splice(0, phrases.length, ...remaining);
+  selectedPhraseIndexes.clear();
   render();
   save();
 });
