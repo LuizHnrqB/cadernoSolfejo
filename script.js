@@ -7,6 +7,7 @@ const defaultTexts = [
   { upper: '', lower: 'Tum' }, { upper: '', lower: '' }, { upper: 'Tchã', lower: '' }, { upper: '', lower: '' }
 ];
 const defaultNoteCells = () => Array.from({ length: 32 }, () => ({ state: 'empty' }));
+const createGroupId = () => `group-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 const savedPhrases = JSON.parse(localStorage.getItem('solfejo-phrases') || 'null');
 const phrases = savedPhrases?.length ? savedPhrases.map(normalizePhrase) : [createDefaultPhrase()];
 
@@ -27,6 +28,8 @@ function createDefaultPhrase() {
     palette: { ...defaultPalette },
     noteMode: false,
     beatCount: 4,
+    groupId: null,
+    groupTitle: '',
     noteCells: defaultNoteCells(),
     cells: createNumericCells(4)
   };
@@ -48,6 +51,8 @@ function normalizePhrase(phrase) {
     palette: { ...defaultPalette, ...(Array.isArray(phrase) ? {} : phrase.palette) },
     noteMode: Array.isArray(phrase) ? false : Boolean(phrase.noteMode),
     beatCount: Math.min(8, Math.max(1, Number(phrase.beatCount) || 4)),
+    groupId: Array.isArray(phrase) ? null : phrase.groupId || null,
+    groupTitle: Array.isArray(phrase) ? '' : phrase.groupTitle || '',
     noteCells: Array.from({ length: 32 }, (_, index) => ({ state: ['empty', 'filled', 'roll'].includes(phrase.noteCells?.[index]?.state) ? phrase.noteCells[index].state : 'empty' })),
     cells: createSavedNumericCells(savedCells, Math.min(8, Math.max(1, Number(phrase.beatCount) || 4)))
   };
@@ -244,7 +249,45 @@ function renderPhrase(phrase, phraseIndex) {
     render();
     save();
   });
-  phraseActions.append(beatSelect, paletteButton, deleteButton);
+  const duplicateButton = document.createElement('button');
+  duplicateButton.className = 'duplicate-phrase-button';
+  duplicateButton.type = 'button';
+  duplicateButton.setAttribute('aria-label', `Duplicar frase ${phraseIndex + 1}`);
+  duplicateButton.title = 'Duplicar frase';
+  duplicateButton.innerHTML = '<span aria-hidden="true">▣</span>';
+  duplicateButton.addEventListener('click', () => {
+    const copy = JSON.parse(JSON.stringify(phrase));
+    copy.title = copy.title ? `${copy.title} (cópia)` : '';
+    copy.groupId = null;
+    copy.groupTitle = '';
+    phrases.splice(phraseIndex + 1, 0, copy);
+    render();
+    save();
+  });
+  const groupButton = document.createElement('button');
+  groupButton.className = 'group-phrase-button';
+  groupButton.type = 'button';
+  groupButton.setAttribute('aria-label', phrase.groupId ? `Desagrupar frase ${phraseIndex + 1}` : `Agrupar frase ${phraseIndex + 1} com a anterior`);
+  groupButton.title = phrase.groupId ? 'Desagrupar frase' : 'Agrupar com a frase anterior';
+  groupButton.innerHTML = `<span aria-hidden="true">${phrase.groupId ? '↗' : '↘'}</span>`;
+  groupButton.disabled = phraseIndex === 0;
+  groupButton.addEventListener('click', () => {
+    if (phraseIndex === 0) return;
+    const previous = phrases[phraseIndex - 1];
+    if (phrase.groupId && phrase.groupId === previous.groupId) {
+      phrase.groupId = null;
+      phrase.groupTitle = '';
+    } else {
+      const groupId = previous.groupId || createGroupId();
+      previous.groupId = groupId;
+      previous.groupTitle = previous.groupTitle || previous.title || 'Grupo de frases';
+      phrase.groupId = groupId;
+      phrase.groupTitle = previous.groupTitle;
+    }
+    render();
+    save();
+  });
+  phraseActions.append(beatSelect, paletteButton, duplicateButton, groupButton, deleteButton);
   phraseHeader.append(modeSelect, phraseTitleWrap, phraseActions);
   phraseElement.append(phraseHeader, paletteDialog);
   if (upperHint) phraseElement.append(upperHint);
@@ -263,7 +306,40 @@ function applyPhrasePalette(phraseElement, palette) {
 }
 
 function render() {
-  phrasesElement.replaceChildren(...phrases.map(renderPhrase));
+  const rendered = [];
+  let index = 0;
+  while (index < phrases.length) {
+    const phrase = phrases[index];
+    if (!phrase.groupId) {
+      rendered.push(renderPhrase(phrase, index));
+      index += 1;
+      continue;
+    }
+    const groupId = phrase.groupId;
+    const groupPhrases = [];
+    while (index < phrases.length && phrases[index].groupId === groupId) {
+      groupPhrases.push({ phrase: phrases[index], index });
+      index += 1;
+    }
+    const group = document.createElement('section');
+    group.className = 'phrase-group';
+    const groupTitle = document.createElement('input');
+    groupTitle.className = 'group-title';
+    groupTitle.type = 'text';
+    groupTitle.value = groupPhrases[0].phrase.groupTitle || 'Grupo de frases';
+    groupTitle.placeholder = 'Título do grupo';
+    groupTitle.setAttribute('aria-label', 'Título do grupo de frases');
+    groupTitle.addEventListener('input', () => {
+      groupPhrases.forEach(({ phrase: groupedPhrase }) => { groupedPhrase.groupTitle = groupTitle.value; });
+      save();
+    });
+    const groupContent = document.createElement('div');
+    groupContent.className = 'group-content';
+    groupContent.append(...groupPhrases.map(({ phrase: groupedPhrase, index: groupedIndex }) => renderPhrase(groupedPhrase, groupedIndex)));
+    group.append(groupTitle, groupContent);
+    rendered.push(group);
+  }
+  phrasesElement.replaceChildren(...rendered);
   phrasesElement.querySelectorAll('[data-field]').forEach(autoResize);
   phraseCount.textContent = phrases.length;
   phraseCount.nextSibling.textContent = phrases.length === 1 ? ' frase' : ' frases';
