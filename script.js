@@ -1,4 +1,5 @@
 const fixedSymbols = ['1', '-', '•', '-', '2', '-', '•', '-', '3', '-', '•', '-', '4', '-', '•', '-'];
+const defaultPalette = { title: '#111111', symbol: '#111111', upper: '#e92d3d', lower: '#111111' };
 const defaultTexts = [
   { upper: '', lower: 'Tu' }, { upper: 'Tchã\n(opc)', lower: '' }, { upper: '', lower: '' }, { upper: '', lower: '' },
   { upper: '', lower: 'Tum' }, { upper: '', lower: '' }, { upper: 'Tchã', lower: '' }, { upper: '', lower: '' },
@@ -22,6 +23,7 @@ function save() {
 function createDefaultPhrase() {
   return {
     title: '',
+    palette: { ...defaultPalette },
     cells: fixedSymbols.map((symbol, index) => ({
       symbol,
       upper: defaultTexts[index].upper,
@@ -34,6 +36,7 @@ function normalizePhrase(phrase) {
   const savedCells = Array.isArray(phrase) ? phrase : phrase.cells;
   return {
     title: Array.isArray(phrase) ? '' : phrase.title || '',
+    palette: { ...defaultPalette, ...(Array.isArray(phrase) ? {} : phrase.palette) },
     cells: fixedSymbols.map((symbol, index) => ({
       symbol,
       upper: savedCells?.[index]?.upper || '',
@@ -85,6 +88,21 @@ function renderPhrase(phrase, phraseIndex) {
     phrases[phraseIndex].title = phraseTitle.value;
     save();
   });
+  const paletteButton = document.createElement('button');
+  paletteButton.className = 'phrase-palette-button';
+  paletteButton.type = 'button';
+  paletteButton.innerHTML = '<span aria-hidden="true">🖌</span> Paleta da frase';
+  paletteButton.addEventListener('click', () => paletteDialog.showModal());
+  const paletteDialog = document.createElement('dialog');
+  paletteDialog.className = 'phrase-palette-dialog';
+  paletteDialog.innerHTML = `<form method="dialog"><div class="dialog-heading"><strong>Paleta da frase ${phraseIndex + 1}</strong><button class="dialog-close" value="cancel" aria-label="Fechar">×</button></div><label class="color-row">Título<input data-palette="title" type="color" value="${phrase.palette.title}"></label><label class="color-row">Marcação<input data-palette="symbol" type="color" value="${phrase.palette.symbol}"></label><label class="color-row">Texto acima<input data-palette="upper" type="color" value="${phrase.palette.upper}"></label><label class="color-row">Texto abaixo<input data-palette="lower" type="color" value="${phrase.palette.lower}"></label></form>`;
+  paletteDialog.querySelectorAll('[data-palette]').forEach((picker) => {
+    picker.addEventListener('input', () => {
+      phrase.palette[picker.dataset.palette] = picker.value;
+      applyPhrasePalette(phraseElement, phrase.palette);
+      save();
+    });
+  });
   const phraseUnderline = document.createElement('div');
   phraseUnderline.className = 'phrase-title-underline';
   const notation = document.createElement('div');
@@ -92,8 +110,19 @@ function renderPhrase(phrase, phraseIndex) {
   notation.setAttribute('aria-label', `Linha da frase ${phraseIndex + 1}`);
   notation.replaceChildren(...phrase.cells.map((cell, cellIndex) => createCell(cell, phraseIndex, cellIndex)));
   phraseTitleWrap.append(phraseTitle, phraseUnderline);
-  phraseElement.append(phraseTitleWrap, notation);
+  const phraseHeader = document.createElement('div');
+  phraseHeader.className = 'phrase-header';
+  phraseHeader.append(phraseTitleWrap, paletteButton);
+  phraseElement.append(phraseHeader, paletteDialog, notation);
+  applyPhrasePalette(phraseElement, phrase.palette);
   return phraseElement;
+}
+
+function applyPhrasePalette(phraseElement, palette) {
+  phraseElement.querySelector('.phrase-title').style.color = palette.title;
+  phraseElement.querySelectorAll('.symbol').forEach((element) => element.style.color = palette.symbol);
+  phraseElement.querySelectorAll('.cell-input.upper').forEach((element) => element.style.color = palette.upper);
+  phraseElement.querySelectorAll('.cell-input.lower').forEach((element) => element.style.color = palette.lower);
 }
 
 function render() {
@@ -106,6 +135,7 @@ function render() {
   });
   document.querySelectorAll('.cell-input.upper').forEach((input) => input.style.color = colors.upper);
   document.querySelectorAll('.cell-input.lower').forEach((input) => input.style.color = colors.lower);
+  document.querySelectorAll('.phrase').forEach((phraseElement, index) => applyPhrasePalette(phraseElement, phrases[index].palette));
 }
 
 function escapeAttribute(value) {
@@ -136,6 +166,8 @@ document.querySelector('#resetColors').addEventListener('click', () => {
 ['title', 'symbol', 'upper', 'lower'].forEach((name) => document.querySelector(`#${name}Color`).addEventListener('input', (event) => { colors[name] = event.target.value; applyColors(); }));
 function applyColors() {
   sheetTitle.style.color = colors.title;
+  phrases.forEach((phrase) => { phrase.palette = { ...colors }; });
   render();
+  save();
 }
 render();
