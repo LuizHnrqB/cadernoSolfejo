@@ -223,7 +223,8 @@ h2 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
   .phrases { break-before: avoid !important; page-break-before: avoid !important; }
   .phrases { display: block !important; width: 100% !important; }
   .phrase, .phrase-group { box-decoration-break: clone; }
-  .phrase { display: block !important; margin: 0 0 18px !important; }
+  .phrase { display: block !important; margin: 0 0 18px !important; break-inside: avoid !important; page-break-inside: avoid !important; }
+  .phrase-title-wrap, .upper-hint, .notation { break-inside: avoid !important; page-break-inside: avoid !important; }
   .phrase-group { display: block !important; margin: 0 0 22px !important; break-inside: auto !important; page-break-inside: auto !important; }
   .group-content { display: block !important; }
   .phrase-group .phrase { margin: 0 0 14px !important; break-inside: avoid !important; page-break-inside: avoid !important; }
