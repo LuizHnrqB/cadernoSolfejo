@@ -1,5 +1,4 @@
 const fixedSymbols = ['1', '-', '•', '-', '2', '-', '•', '-', '3', '-', '•', '-', '4', '-', '•', '-'];
-const defaultTextColors = { upper: '#e92d3d', lower: '#111111' };
 const defaultTexts = [
   { upper: '', lower: 'Tu' }, { upper: 'Tchã\n(opc)', lower: '' }, { upper: '', lower: '' }, { upper: '', lower: '' },
   { upper: '', lower: 'Tum' }, { upper: '', lower: '' }, { upper: 'Tchã', lower: '' }, { upper: '', lower: '' },
@@ -26,9 +25,7 @@ function createDefaultPhrase() {
     cells: fixedSymbols.map((symbol, index) => ({
       symbol,
       upper: defaultTexts[index].upper,
-      lower: defaultTexts[index].lower,
-      upperColor: defaultTextColors.upper,
-      lowerColor: defaultTextColors.lower
+      lower: defaultTexts[index].lower
     }))
   };
 }
@@ -40,9 +37,7 @@ function normalizePhrase(phrase) {
     cells: fixedSymbols.map((symbol, index) => ({
       symbol,
       upper: savedCells?.[index]?.upper || '',
-      lower: savedCells?.[index]?.lower || '',
-      upperColor: savedCells?.[index]?.upperColor || defaultTextColors.upper,
-      lowerColor: savedCells?.[index]?.lowerColor || defaultTextColors.lower
+      lower: savedCells?.[index]?.lower || ''
     }))
   };
 }
@@ -51,13 +46,15 @@ function createCell(cell, phraseIndex, cellIndex) {
   const element = document.createElement('div');
   element.className = 'notation-cell';
   element.innerHTML = `
-    <div class="text-field-wrap upper-field"><input class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="" value="${escapeAttribute(cell.upper)}"><input class="text-color-picker" data-color-field="upperColor" type="color" aria-label="Cor do texto acima da marcação ${cellIndex + 1}" value="${cell.upperColor}"></div>
+    <div class="text-field-wrap upper-field"><textarea class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.upper)}</textarea></div>
     <div class="symbol-wrap"><span class="symbol" aria-label="Marcação fixa ${cell.symbol}">${cell.symbol}</span></div>
-    <div class="text-field-wrap lower-field"><input class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="" value="${escapeAttribute(cell.lower)}"><input class="text-color-picker" data-color-field="lowerColor" type="color" aria-label="Cor do texto abaixo da marcação ${cellIndex + 1}" value="${cell.lowerColor}"></div>
+    <div class="text-field-wrap lower-field"><textarea class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.lower)}</textarea></div>
   `;
   element.querySelectorAll('[data-field]').forEach((input) => {
+    autoResize(input);
     input.addEventListener('input', () => {
       phrases[phraseIndex].cells[cellIndex][input.dataset.field] = input.value;
+      autoResize(input);
       save();
     });
     input.addEventListener('change', () => {
@@ -65,16 +62,12 @@ function createCell(cell, phraseIndex, cellIndex) {
       save();
     });
   });
-  element.querySelectorAll('[data-color-field]').forEach((picker) => {
-    const textInput = picker.parentElement.querySelector('.cell-input');
-    textInput.style.color = picker.value;
-    picker.addEventListener('input', () => {
-      phrases[phraseIndex].cells[cellIndex][picker.dataset.colorField] = picker.value;
-      textInput.style.color = picker.value;
-      save();
-    });
-  });
   return element;
+}
+
+function autoResize(input) {
+  input.style.height = 'auto';
+  input.style.height = `${input.scrollHeight}px`;
 }
 
 function renderPhrase(phrase, phraseIndex) {
@@ -111,6 +104,8 @@ function render() {
   document.querySelectorAll('.symbol').forEach((symbol) => {
     symbol.style.color = colors.symbol;
   });
+  document.querySelectorAll('.cell-input.upper').forEach((input) => input.style.color = colors.upper);
+  document.querySelectorAll('.cell-input.lower').forEach((input) => input.style.color = colors.lower);
 }
 
 function escapeAttribute(value) {
@@ -134,11 +129,11 @@ document.querySelector('#removePhraseButton').addEventListener('click', () => {
   save();
 });
 document.querySelector('#resetColors').addEventListener('click', () => {
-  Object.assign(colors, { title: '#111111', symbol: '#111111' });
-  ['titleColor', 'symbolColor'].forEach((id) => document.querySelector(`#${id}`).value = colors[id.replace('Color', '')]);
+  Object.assign(colors, { title: '#111111', symbol: '#111111', upper: '#e92d3d', lower: '#111111' });
+  ['titleColor', 'symbolColor', 'upperColor', 'lowerColor'].forEach((id) => document.querySelector(`#${id}`).value = colors[id.replace('Color', '')]);
   applyColors();
 });
-['title', 'symbol'].forEach((name) => document.querySelector(`#${name}Color`).addEventListener('input', (event) => { colors[name] = event.target.value; applyColors(); }));
+['title', 'symbol', 'upper', 'lower'].forEach((name) => document.querySelector(`#${name}Color`).addEventListener('input', (event) => { colors[name] = event.target.value; applyColors(); }));
 function applyColors() {
   sheetTitle.style.color = colors.title;
   render();
