@@ -6,6 +6,7 @@ const defaultTexts = [
   { upper: '', lower: 'Tu' }, { upper: '', lower: '' }, { upper: 'Tchã', lower: '' }, { upper: '', lower: '' },
   { upper: '', lower: 'Tum' }, { upper: '', lower: '' }, { upper: 'Tchã', lower: '' }, { upper: '', lower: '' }
 ];
+const defaultNoteCells = () => Array.from({ length: 32 }, () => ({ state: 'empty' }));
 const savedPhrases = JSON.parse(localStorage.getItem('solfejo-phrases') || 'null');
 const phrases = savedPhrases?.length ? savedPhrases.map(normalizePhrase) : [createDefaultPhrase()];
 
@@ -24,12 +25,20 @@ function createDefaultPhrase() {
   return {
     title: '',
     palette: { ...defaultPalette },
-    cells: fixedSymbols.map((symbol, index) => ({
-      symbol,
-      upper: defaultTexts[index].upper,
-      lower: defaultTexts[index].lower
-    }))
+    noteMode: false,
+    beatCount: 4,
+    noteCells: defaultNoteCells(),
+    cells: createNumericCells(4)
   };
+}
+
+function createNumericCells(beatCount) {
+  return Array.from({ length: beatCount * 4 }, (_, index) => ({
+    symbol: numericSymbol(index),
+    noteState: 'empty',
+    upper: defaultTexts[index % defaultTexts.length].upper,
+    lower: defaultTexts[index % defaultTexts.length].lower
+  }));
 }
 
 function normalizePhrase(phrase) {
@@ -37,26 +46,55 @@ function normalizePhrase(phrase) {
   return {
     title: Array.isArray(phrase) ? '' : phrase.title || '',
     palette: { ...defaultPalette, ...(Array.isArray(phrase) ? {} : phrase.palette) },
-    cells: fixedSymbols.map((symbol, index) => ({
-      symbol,
-      upper: savedCells?.[index]?.upper || '',
-      lower: savedCells?.[index]?.lower || ''
-    }))
+    noteMode: Array.isArray(phrase) ? false : Boolean(phrase.noteMode),
+    beatCount: Math.min(8, Math.max(1, Number(phrase.beatCount) || 4)),
+    noteCells: Array.from({ length: 32 }, (_, index) => ({ state: ['empty', 'filled', 'roll'].includes(phrase.noteCells?.[index]?.state) ? phrase.noteCells[index].state : 'empty' })),
+    cells: createSavedNumericCells(savedCells, Math.min(8, Math.max(1, Number(phrase.beatCount) || 4)))
   };
 }
 
-function createCell(cell, phraseIndex, cellIndex) {
+function createSavedNumericCells(savedCells, beatCount) {
+  return Array.from({ length: beatCount * 4 }, (_, index) => ({
+    symbol: numericSymbol(index),
+    noteState: ['empty', 'filled', 'roll'].includes(savedCells?.[index]?.noteState) ? savedCells[index].noteState : 'empty',
+    upper: savedCells?.[index]?.upper ?? defaultTexts[index % defaultTexts.length].upper,
+    lower: savedCells?.[index]?.lower ?? defaultTexts[index % defaultTexts.length].lower
+  }));
+}
+
+function numericSymbol(index) {
+  const position = index % 4;
+  return position === 0 ? String(Math.floor(index / 4) + 1) : position === 2 ? '•' : '-';
+}
+
+function resizeNumericCells(phrase) {
+  phrase.cells = createSavedNumericCells(phrase.cells, phrase.beatCount);
+}
+
+function createCell(cell, phraseIndex, cellIndex, noteMode) {
   const element = document.createElement('div');
   element.className = 'notation-cell';
-  element.innerHTML = `
-    <div class="text-field-wrap upper-field"><textarea class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.upper)}</textarea></div>
-    <div class="symbol-wrap"><span class="symbol" aria-label="Marcação fixa ${cell.symbol}">${cell.symbol}</span></div>
-    <div class="text-field-wrap lower-field"><textarea class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.lower)}</textarea></div>
-  `;
+  const isNote = noteMode && cell.symbol !== '-';
+  const upperField = `<div class="text-field-wrap upper-field"><textarea class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.upper)}</textarea></div>`;
+  const lowerField = `<div class="text-field-wrap lower-field"><textarea class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.lower)}</textarea></div>`;
+  const symbolField = `<div class="symbol-wrap"><span class="symbol ${isNote ? 'note-symbol' : 'dash-symbol'}" aria-label="Marcação fixa ${cell.symbol}">${cell.symbol}</span></div>`;
+  element.innerHTML = noteMode ? symbolField : `${upperField}${symbolField}${lowerField}`;
+  const symbol = element.querySelector('.symbol');
+  if (isNote) {
+    symbol.addEventListener('click', () => {
+      const states = ['empty', 'filled', 'roll'];
+      cell.noteState = states[(states.indexOf(cell.noteState) + 1) % states.length];
+      updateNoteSymbol(symbol, cell);
+      save();
+    });
+    updateNoteSymbol(symbol, cell);
+  }
   element.querySelectorAll('[data-field]').forEach((input) => {
+    updateTextFieldSize(input);
     autoResize(input);
     input.addEventListener('input', () => {
       phrases[phraseIndex].cells[cellIndex][input.dataset.field] = input.value;
+      updateTextFieldSize(input);
       autoResize(input);
       save();
     });
@@ -66,6 +104,48 @@ function createCell(cell, phraseIndex, cellIndex) {
     });
   });
   return element;
+}
+
+function updateTextFieldSize(input) {
+  input.classList.toggle('has-content', input.value.trim().length > 0);
+}
+
+function createNoteNotation(phrase, phraseIndex) {
+  const notation = document.createElement('div');
+  notation.className = 'note-notation';
+  notation.setAttribute('aria-label', `Linha de notas da frase ${phraseIndex + 1}`);
+  for (let groupIndex = 0; groupIndex < phrase.beatCount; groupIndex += 1) {
+    const group = document.createElement('div');
+    group.className = 'note-group';
+    for (let noteIndex = 0; noteIndex < 4; noteIndex += 1) {
+      const index = groupIndex * 4 + noteIndex;
+      const note = document.createElement('button');
+      note.type = 'button';
+      note.setAttribute('aria-label', `Nota ${index + 1}`);
+      note.addEventListener('click', () => {
+        const states = ['empty', 'filled', 'roll'];
+        const current = phrase.noteCells[index].state;
+        phrase.noteCells[index].state = states[(states.indexOf(current) + 1) % states.length];
+        updateMusicalNote(note, phrase.noteCells[index]);
+        save();
+      });
+      updateMusicalNote(note, phrase.noteCells[index]);
+      group.append(note);
+    }
+    notation.append(group);
+  }
+  return notation;
+}
+
+function updateMusicalNote(note, cell) {
+  note.className = `musical-note note-state-${cell.state}`;
+  note.innerHTML = '<span class="note-head"></span><span class="note-stem"></span><span class="note-rulo"></span>';
+}
+
+function updateNoteSymbol(symbol, cell) {
+  symbol.className = `symbol note-symbol note-${cell.noteState}`;
+  symbol.textContent = '';
+  symbol.setAttribute('aria-label', `Nota ${cell.noteState}. Clique para alterar`);
 }
 
 function autoResize(input) {
@@ -93,6 +173,27 @@ function renderPhrase(phrase, phraseIndex) {
   paletteButton.type = 'button';
   paletteButton.innerHTML = '<span aria-hidden="true">🖌</span> Paleta da frase';
   paletteButton.addEventListener('click', () => paletteDialog.showModal());
+  const modeSelect = document.createElement('select');
+  modeSelect.className = 'mode-select';
+  modeSelect.setAttribute('aria-label', `Modo da frase ${phraseIndex + 1}`);
+  modeSelect.innerHTML = '<option value="numeric">Solfejo numérico</option><option value="notes">Notas</option>';
+  modeSelect.value = phrase.noteMode ? 'notes' : 'numeric';
+  modeSelect.addEventListener('change', () => {
+    phrase.noteMode = modeSelect.value === 'notes';
+    render();
+    save();
+  });
+  const beatSelect = document.createElement('select');
+  beatSelect.className = 'beat-select';
+  beatSelect.setAttribute('aria-label', `Quantidade de tempos da frase ${phraseIndex + 1}`);
+  beatSelect.innerHTML = Array.from({ length: 8 }, (_, index) => `<option value="${index + 1}">${index + 1} ${index === 0 ? 'tempo' : 'tempos'}</option>`).join('');
+  beatSelect.value = phrase.beatCount;
+  beatSelect.addEventListener('change', () => {
+    phrase.beatCount = Number(beatSelect.value);
+    resizeNumericCells(phrase);
+    render();
+    save();
+  });
   const paletteDialog = document.createElement('dialog');
   paletteDialog.className = 'phrase-palette-dialog';
   paletteDialog.innerHTML = `<form method="dialog"><div class="dialog-heading"><strong>Paleta da frase ${phraseIndex + 1}</strong><button class="dialog-close" value="cancel" aria-label="Fechar">×</button></div><label class="color-row">Título<input data-palette="title" type="color" value="${phrase.palette.title}"></label><label class="color-row">Marcação<input data-palette="symbol" type="color" value="${phrase.palette.symbol}"></label><label class="color-row">Texto acima<input data-palette="upper" type="color" value="${phrase.palette.upper}"></label><label class="color-row">Texto abaixo<input data-palette="lower" type="color" value="${phrase.palette.lower}"></label></form>`;
@@ -105,15 +206,47 @@ function renderPhrase(phrase, phraseIndex) {
   });
   const phraseUnderline = document.createElement('div');
   phraseUnderline.className = 'phrase-title-underline';
-  const notation = document.createElement('div');
-  notation.className = 'notation';
-  notation.setAttribute('aria-label', `Linha da frase ${phraseIndex + 1}`);
-  notation.replaceChildren(...phrase.cells.map((cell, cellIndex) => createCell(cell, phraseIndex, cellIndex)));
+  const notation = phrase.noteMode ? createNoteNotation(phrase, phraseIndex) : document.createElement('div');
+  if (!phrase.noteMode) {
+    notation.className = 'notation';
+    notation.setAttribute('aria-label', `Linha da frase ${phraseIndex + 1}`);
+    notation.replaceChildren(...phrase.cells.map((cell, cellIndex) => createCell(cell, phraseIndex, cellIndex, false)));
+    notation.querySelectorAll('[data-field]').forEach(autoResize);
+    notation.style.setProperty('--phrase-columns', phrase.cells.length);
+    notation.style.setProperty('--symbol-size', `${Math.max(24, Math.min(68, 1080 / phrase.cells.length))}px`);
+  } else {
+    notation.style.setProperty('--phrase-columns', phrase.beatCount);
+  }
+  let upperHint = null;
+  if (!phrase.noteMode) {
+    upperHint = document.createElement('div');
+    upperHint.className = 'upper-hint';
+    upperHint.textContent = 'Linha superior (opcional)';
+  }
+  if (phrase.noteMode) phraseElement.classList.add('note-mode');
   phraseTitleWrap.append(phraseTitle, phraseUnderline);
   const phraseHeader = document.createElement('div');
   phraseHeader.className = 'phrase-header';
-  phraseHeader.append(phraseTitleWrap, paletteButton);
-  phraseElement.append(phraseHeader, paletteDialog, notation);
+  const phraseActions = document.createElement('div');
+  phraseActions.className = 'phrase-header-actions';
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'delete-phrase-button';
+  deleteButton.type = 'button';
+  deleteButton.setAttribute('aria-label', `Remover frase ${phraseIndex + 1}`);
+  deleteButton.title = 'Remover frase';
+  deleteButton.innerHTML = '<span aria-hidden="true">🗑</span>';
+  deleteButton.disabled = phrases.length === 1;
+  deleteButton.addEventListener('click', () => {
+    if (phrases.length === 1) return;
+    phrases.splice(phraseIndex, 1);
+    render();
+    save();
+  });
+  phraseActions.append(beatSelect, paletteButton, deleteButton);
+  phraseHeader.append(modeSelect, phraseTitleWrap, phraseActions);
+  phraseElement.append(phraseHeader, paletteDialog);
+  if (upperHint) phraseElement.append(upperHint);
+  phraseElement.append(notation);
   applyPhrasePalette(phraseElement, phrase.palette);
   return phraseElement;
 }
@@ -127,9 +260,9 @@ function applyPhrasePalette(phraseElement, palette) {
 
 function render() {
   phrasesElement.replaceChildren(...phrases.map(renderPhrase));
+  phrasesElement.querySelectorAll('[data-field]').forEach(autoResize);
   phraseCount.textContent = phrases.length;
   phraseCount.nextSibling.textContent = phrases.length === 1 ? ' frase' : ' frases';
-  document.querySelector('#removePhraseButton').disabled = phrases.length === 1;
   document.querySelectorAll('.symbol').forEach((symbol) => {
     symbol.style.color = colors.symbol;
   });
@@ -149,12 +282,6 @@ sheetTitle.addEventListener('input', () => { titleInput.value = sheetTitle.value
 document.querySelector('#printButton').addEventListener('click', () => window.print());
 document.querySelector('#addPhraseButton').addEventListener('click', () => {
   phrases.push({ ...createDefaultPhrase(), cells: createDefaultPhrase().cells.map((cell) => ({ ...cell, upper: '', lower: '' })) });
-  render();
-  save();
-});
-document.querySelector('#removePhraseButton').addEventListener('click', () => {
-  if (phrases.length === 1) return;
-  phrases.pop();
   render();
   save();
 });
