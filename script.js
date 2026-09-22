@@ -75,8 +75,8 @@ function createCell(cell, phraseIndex, cellIndex, noteMode) {
   const element = document.createElement('div');
   element.className = 'notation-cell';
   const isNote = noteMode && cell.symbol !== '-';
-  const upperField = `<div class="text-field-wrap upper-field"><textarea class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.upper)}</textarea></div>`;
-  const lowerField = `<div class="text-field-wrap lower-field"><textarea class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.lower)}</textarea></div>`;
+  const upperField = `<div class="text-field-wrap upper-field"><textarea wrap="off" class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.upper)}</textarea></div>`;
+  const lowerField = `<div class="text-field-wrap lower-field"><textarea wrap="off" class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.lower)}</textarea></div>`;
   const symbolField = `<div class="symbol-wrap"><span class="symbol ${isNote ? 'note-symbol' : 'dash-symbol'}" aria-label="Marcação fixa ${cell.symbol}">${cell.symbol}</span></div>`;
   element.innerHTML = noteMode ? symbolField : `${upperField}${symbolField}${lowerField}`;
   const symbol = element.querySelector('.symbol');
