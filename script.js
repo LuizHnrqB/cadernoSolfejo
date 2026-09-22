@@ -1,4 +1,5 @@
 const fixedSymbols = ['1', '-', '•', '-', '2', '-', '•', '-', '3', '-', '•', '-', '4', '-', '•', '-'];
+const defaultTextColors = { upper: '#e92d3d', lower: '#111111' };
 const defaultTexts = [
   { upper: '', lower: 'Tu' }, { upper: 'Tchã\n(opc)', lower: '' }, { upper: '', lower: '' }, { upper: '', lower: '' },
   { upper: '', lower: 'Tum' }, { upper: '', lower: '' }, { upper: 'Tchã', lower: '' }, { upper: '', lower: '' },
@@ -6,7 +7,7 @@ const defaultTexts = [
   { upper: '', lower: 'Tum' }, { upper: '', lower: '' }, { upper: 'Tchã', lower: '' }, { upper: '', lower: '' }
 ];
 const savedPhrases = JSON.parse(localStorage.getItem('solfejo-phrases') || 'null');
-const phrases = savedPhrases?.length ? savedPhrases : [createDefaultPhrase()];
+const phrases = savedPhrases?.length ? savedPhrases.map(normalizePhrase) : [createDefaultPhrase()];
 
 const phrasesElement = document.querySelector('#phrases');
 const titleInput = document.querySelector('#titleInput');
@@ -20,28 +21,56 @@ function save() {
 }
 
 function createDefaultPhrase() {
-  return fixedSymbols.map((symbol, index) => ({
-    symbol,
-    upper: defaultTexts[index].upper,
-    lower: defaultTexts[index].lower
-  }));
+  return {
+    title: '',
+    cells: fixedSymbols.map((symbol, index) => ({
+      symbol,
+      upper: defaultTexts[index].upper,
+      lower: defaultTexts[index].lower,
+      upperColor: defaultTextColors.upper,
+      lowerColor: defaultTextColors.lower
+    }))
+  };
+}
+
+function normalizePhrase(phrase) {
+  const savedCells = Array.isArray(phrase) ? phrase : phrase.cells;
+  return {
+    title: Array.isArray(phrase) ? '' : phrase.title || '',
+    cells: fixedSymbols.map((symbol, index) => ({
+      symbol,
+      upper: savedCells?.[index]?.upper || '',
+      lower: savedCells?.[index]?.lower || '',
+      upperColor: savedCells?.[index]?.upperColor || defaultTextColors.upper,
+      lowerColor: savedCells?.[index]?.lowerColor || defaultTextColors.lower
+    }))
+  };
 }
 
 function createCell(cell, phraseIndex, cellIndex) {
   const element = document.createElement('div');
   element.className = 'notation-cell';
   element.innerHTML = `
-    <input class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="" value="${escapeAttribute(cell.upper)}">
+    <div class="text-field-wrap upper-field"><input class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="" value="${escapeAttribute(cell.upper)}"><input class="text-color-picker" data-color-field="upperColor" type="color" aria-label="Cor do texto acima da marcação ${cellIndex + 1}" value="${cell.upperColor}"></div>
     <div class="symbol-wrap"><span class="symbol" aria-label="Marcação fixa ${cell.symbol}">${cell.symbol}</span></div>
-    <input class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="" value="${escapeAttribute(cell.lower)}">
+    <div class="text-field-wrap lower-field"><input class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="" value="${escapeAttribute(cell.lower)}"><input class="text-color-picker" data-color-field="lowerColor" type="color" aria-label="Cor do texto abaixo da marcação ${cellIndex + 1}" value="${cell.lowerColor}"></div>
   `;
   element.querySelectorAll('[data-field]').forEach((input) => {
     input.addEventListener('input', () => {
-      phrases[phraseIndex][cellIndex][input.dataset.field] = input.value;
+      phrases[phraseIndex].cells[cellIndex][input.dataset.field] = input.value;
       save();
     });
     input.addEventListener('change', () => {
-      phrases[phraseIndex][cellIndex][input.dataset.field] = input.value;
+      phrases[phraseIndex].cells[cellIndex][input.dataset.field] = input.value;
+      save();
+    });
+  });
+  element.querySelectorAll('[data-color-field]').forEach((picker) => {
+    const textInput = picker.parentElement.querySelector('.cell-input');
+    textInput.style.color = picker.value;
+    picker.addEventListener('input', () => {
+      phrases[phraseIndex].cells[cellIndex][picker.dataset.colorField] = picker.value;
+      textInput.style.color = picker.value;
       save();
     });
   });
@@ -49,11 +78,29 @@ function createCell(cell, phraseIndex, cellIndex) {
 }
 
 function renderPhrase(phrase, phraseIndex) {
+  const phraseElement = document.createElement('section');
+  phraseElement.className = 'phrase';
+  const phraseTitleWrap = document.createElement('div');
+  phraseTitleWrap.className = 'phrase-title-wrap';
+  const phraseTitle = document.createElement('input');
+  phraseTitle.className = 'phrase-title';
+  phraseTitle.type = 'text';
+  phraseTitle.placeholder = `Título da frase ${phraseIndex + 1}`;
+  phraseTitle.value = phrase.title;
+  phraseTitle.setAttribute('aria-label', `Título da frase ${phraseIndex + 1}`);
+  phraseTitle.addEventListener('input', () => {
+    phrases[phraseIndex].title = phraseTitle.value;
+    save();
+  });
+  const phraseUnderline = document.createElement('div');
+  phraseUnderline.className = 'phrase-title-underline';
   const notation = document.createElement('div');
   notation.className = 'notation';
   notation.setAttribute('aria-label', `Linha da frase ${phraseIndex + 1}`);
-  notation.replaceChildren(...phrase.map((cell, cellIndex) => createCell(cell, phraseIndex, cellIndex)));
-  return notation;
+  notation.replaceChildren(...phrase.cells.map((cell, cellIndex) => createCell(cell, phraseIndex, cellIndex)));
+  phraseTitleWrap.append(phraseTitle, phraseUnderline);
+  phraseElement.append(phraseTitleWrap, notation);
+  return phraseElement;
 }
 
 function render() {
@@ -64,8 +111,6 @@ function render() {
   document.querySelectorAll('.symbol').forEach((symbol) => {
     symbol.style.color = colors.symbol;
   });
-  document.querySelectorAll('.cell-input.upper').forEach((input) => input.style.color = colors.upper);
-  document.querySelectorAll('.cell-input.lower').forEach((input) => input.style.color = colors.lower);
 }
 
 function escapeAttribute(value) {
@@ -78,7 +123,7 @@ titleInput.addEventListener('input', () => { sheetTitle.value = titleInput.value
 sheetTitle.addEventListener('input', () => { titleInput.value = sheetTitle.value; save(); });
 document.querySelector('#printButton').addEventListener('click', () => window.print());
 document.querySelector('#addPhraseButton').addEventListener('click', () => {
-  phrases.push(createDefaultPhrase().map((cell) => ({ ...cell, upper: '', lower: '' })));
+  phrases.push({ ...createDefaultPhrase(), cells: createDefaultPhrase().cells.map((cell) => ({ ...cell, upper: '', lower: '' })) });
   render();
   save();
 });
@@ -89,11 +134,11 @@ document.querySelector('#removePhraseButton').addEventListener('click', () => {
   save();
 });
 document.querySelector('#resetColors').addEventListener('click', () => {
-  Object.assign(colors, { title: '#111111', symbol: '#111111', upper: '#e92d3d', lower: '#111111' });
-  ['titleColor', 'symbolColor', 'upperColor', 'lowerColor'].forEach((id) => document.querySelector(`#${id}`).value = colors[id.replace('Color', '')]);
+  Object.assign(colors, { title: '#111111', symbol: '#111111' });
+  ['titleColor', 'symbolColor'].forEach((id) => document.querySelector(`#${id}`).value = colors[id.replace('Color', '')]);
   applyColors();
 });
-['title', 'symbol', 'upper', 'lower'].forEach((name) => document.querySelector(`#${name}Color`).addEventListener('input', (event) => { colors[name] = event.target.value; applyColors(); }));
+['title', 'symbol'].forEach((name) => document.querySelector(`#${name}Color`).addEventListener('input', (event) => { colors[name] = event.target.value; applyColors(); }));
 function applyColors() {
   sheetTitle.style.color = colors.title;
   render();
