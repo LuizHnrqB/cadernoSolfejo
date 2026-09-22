@@ -217,6 +217,9 @@ h2 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
 @media print {
   .music-sheet { min-height: auto !important; height: auto !important; overflow: visible !important; padding-top: 24px !important; }
   .sheet-title-wrap { margin-bottom: 28px !important; break-after: avoid !important; page-break-after: avoid !important; }
+  .phrase-title-wrap { margin-bottom: 20px !important; }
+  .phrase-title-underline { margin-bottom: 12px !important; }
+  .upper-hint { margin-top: 8px !important; margin-bottom: 12px !important; }
   .phrases { break-before: avoid !important; page-break-before: avoid !important; }
   .phrases { display: block !important; width: 100% !important; }
   .phrase, .phrase-group { box-decoration-break: clone; }
