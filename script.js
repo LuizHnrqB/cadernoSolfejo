@@ -75,8 +75,8 @@ function createCell(cell, phraseIndex, cellIndex, noteMode) {
   const element = document.createElement('div');
   element.className = 'notation-cell';
   const isNote = noteMode && cell.symbol !== '-';
-  const upperField = `<div class="text-field-wrap upper-field"><textarea wrap="off" class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.upper)}</textarea></div>`;
-  const lowerField = `<div class="text-field-wrap lower-field"><textarea wrap="off" class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.lower)}</textarea></div>`;
+  const upperField = `<div class="text-field-wrap upper-field"><textarea wrap="off" class="cell-input upper" data-field="upper" aria-label="Texto acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.upper)}</textarea><span class="print-text upper">${escapeAttribute(cell.upper)}</span></div>`;
+  const lowerField = `<div class="text-field-wrap lower-field"><textarea wrap="off" class="cell-input lower" data-field="lower" aria-label="Texto abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}" placeholder="">${escapeAttribute(cell.lower)}</textarea><span class="print-text lower">${escapeAttribute(cell.lower)}</span></div>`;
   const symbolField = `<div class="symbol-wrap"><span class="symbol ${isNote ? 'note-symbol' : 'dash-symbol'}" aria-label="Marcação fixa ${cell.symbol}">${cell.symbol}</span></div>`;
   element.innerHTML = noteMode ? symbolField : `${upperField}${symbolField}${lowerField}`;
   const symbol = element.querySelector('.symbol');
@@ -94,12 +94,14 @@ function createCell(cell, phraseIndex, cellIndex, noteMode) {
     autoResize(input);
     input.addEventListener('input', () => {
       phrases[phraseIndex].cells[cellIndex][input.dataset.field] = input.value;
+      input.parentElement.querySelector('.print-text').textContent = input.value;
       updateTextFieldSize(input);
       autoResize(input);
       save();
     });
     input.addEventListener('change', () => {
       phrases[phraseIndex].cells[cellIndex][input.dataset.field] = input.value;
+      input.parentElement.querySelector('.print-text').textContent = input.value;
       save();
     });
   });
@@ -256,6 +258,8 @@ function applyPhrasePalette(phraseElement, palette) {
   phraseElement.querySelectorAll('.symbol').forEach((element) => element.style.color = palette.symbol);
   phraseElement.querySelectorAll('.cell-input.upper').forEach((element) => element.style.color = palette.upper);
   phraseElement.querySelectorAll('.cell-input.lower').forEach((element) => element.style.color = palette.lower);
+  phraseElement.querySelectorAll('.print-text.upper').forEach((element) => element.style.color = palette.upper);
+  phraseElement.querySelectorAll('.print-text.lower').forEach((element) => element.style.color = palette.lower);
 }
 
 function render() {
@@ -279,6 +283,9 @@ titleInput.value = localStorage.getItem('solfejo-title') || 'Xote';
 sheetTitle.value = titleInput.value;
 titleInput.addEventListener('input', () => { sheetTitle.value = titleInput.value; save(); });
 sheetTitle.addEventListener('input', () => { titleInput.value = sheetTitle.value; save(); });
+const originalDocumentTitle = document.title;
+window.addEventListener('beforeprint', () => { document.title = ''; });
+window.addEventListener('afterprint', () => { document.title = originalDocumentTitle; });
 document.querySelector('#printButton').addEventListener('click', () => window.print());
 document.querySelector('#addPhraseButton').addEventListener('click', () => {
   phrases.push({ ...createDefaultPhrase(), cells: createDefaultPhrase().cells.map((cell) => ({ ...cell, upper: '', lower: '' })) });

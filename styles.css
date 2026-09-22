@@ -98,12 +98,13 @@ h2 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
 .upper-hint { margin: -4px 0 -4px; color: var(--blue); font-size: 11px; font-weight: 700; letter-spacing: .03em; }
 .notation { display: grid; grid-template-columns: repeat(var(--phrase-columns, 16), minmax(0, 1fr)); align-items: center; width: 100%; gap: clamp(8px, 1.4vw, 18px); }
 .notation-cell { display: grid; grid-template-rows: minmax(36px, auto) 94px minmax(36px, auto); justify-items: center; min-width: 0; }
-.text-field-wrap { display: flex; align-items: flex-start; width: 100%; min-width: 0; }
-.cell-input { width: 100%; min-width: 0; min-height: 42px; padding: 9px 2px; overflow: hidden; border: 0; border-radius: 4px; outline: none; background: #f1ede4; font-family: inherit; line-height: 1.1; resize: none; text-align: center; overflow-wrap: anywhere; transition: background .2s ease, width .2s ease; }
+.text-field-wrap { display: grid; place-items: start center; width: 100%; min-width: 0; }
+.cell-input { display: block; width: 100%; min-width: 0; min-height: 42px; padding: 9px 2px; overflow: hidden; border: 0; border-radius: 4px; outline: none; background: #f1ede4; font-family: inherit; line-height: 1.1; resize: none; text-align: center; text-align-last: center; overflow-wrap: anywhere; transition: background .2s ease, width .2s ease; }
 .cell-input.has-content { width: 100%; min-width: 0; margin: 0; white-space: normal; overflow: hidden; }
 .cell-input:hover, .cell-input:focus { background: #e4edf0; }
 .cell-input.upper, .cell-input.lower { color: var(--red); font-size: clamp(11px, 1.2vw, 15px); font-weight: 700; }
 .cell-input.lower { color: var(--ink); }
+.print-text { display: none; }
 .symbol-wrap { display: flex; align-items: center; height: 94px; }
 .symbol { display: inline-block; width: 100%; color: var(--ink); font-family: 'Space Grotesk', sans-serif; font-size: var(--symbol-size, 68px); font-weight: 700; line-height: 1; text-align: center; }
 .dash { width: 26px; height: 4px; background: var(--ink); }
@@ -111,7 +112,8 @@ h2 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
 .notation-cell { position: relative; }
 .notation-cell:hover .cell-delete, .cell-delete:focus { opacity: 1; }
 @media (max-width: 760px) { .app-shell { padding: 20px 16px 32px; } .workspace { gap: 24px; } .controls-panel { grid-template-columns: 1fr 1fr; gap: 10px 14px; } .panel-heading, .field-label, .text-input, .control-section, .helper-section, .phrase-actions { grid-column: span 2; grid-row: auto; } .sheet-toolbar { align-items: center; gap: 8px; flex-wrap: wrap; } .music-sheet { padding-right: 12px; padding-left: 12px; } .sheet-title { font-size: 42px; } .sheet-title-wrap { margin-bottom: 64px; } .phrase-header { grid-template-columns: auto 1fr auto; min-height: 96px; } .phrase-header-actions { position: static; grid-column: 3; gap: 8px; transform: none; } .mode-select, .beat-select, .phrase-palette-button { min-width: 0; min-height: 38px; padding: 0 8px; font-size: 10px; } .phrase-palette-button span { font-size: 14px; } .phrase-title { font-size: 28px; } .notation { gap: 2px; } .notation-cell { grid-template-rows: minmax(30px, auto) 56px minmax(30px, auto); } .phrase.note-mode .notation-cell { grid-template-rows: 70px; } .symbol-wrap, .phrase.note-mode .symbol-wrap { height: 70px; } .symbol { font-size: 40px; } .note-notation { grid-template-columns: 1fr; gap: 18px; } .note-group, .musical-note { min-height: 88px; height: 88px; } .note-group::before { top: 14px; right: 4%; left: 10%; height: 2px; box-shadow: 0 5px 0 currentColor; } .note-head { top: 48px; width: 22px; height: 15px; } .note-stem { top: 14px; height: 42px; left: 50%; } .note-rulo { top: 34px; width: 24px; } .cell-input { min-height: 30px; padding: 6px 1px; } .cell-input.upper, .cell-input.lower { font-size: 10px; } }
-@media print { *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } body { background: white; } .topbar, .controls-panel, .sheet-toolbar, .phrase-header-actions, .mode-select, .beat-select, .phrase-palette-button, .delete-phrase-button, .phrase-palette-dialog { display: none !important; visibility: hidden !important; } .phrase-header > .mode-select { position: absolute !important; width: 0 !important; height: 0 !important; min-width: 0 !important; padding: 0 !important; opacity: 0 !important; } .app-shell { padding: 0; } .workspace { display: block; padding: 0; } .music-sheet { min-height: 100vh; margin: 0; border: 0; box-shadow: none; } .phrase-header { min-height: auto; } .musical-note { display: block; background: transparent; }
+@page { margin: 0; }
+@media print { *, *::before, *::after { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } html, body { margin: 0 !important; padding: 0 !important; background: white; } .topbar, .controls-panel, .sheet-toolbar, .phrase-header-actions, .mode-select, .beat-select, .phrase-palette-button, .delete-phrase-button, .phrase-palette-dialog { display: none !important; visibility: hidden !important; } .phrase-header > .mode-select { position: absolute !important; width: 0 !important; height: 0 !important; min-width: 0 !important; padding: 0 !important; opacity: 0 !important; } .app-shell { width: 100%; padding: 0; } .workspace { display: block; padding: 0; } .music-sheet { min-height: 100vh; margin: 0; border: 0; box-shadow: none; } .phrase-header { min-height: auto; } .notation-cell { justify-items: center; } .text-field-wrap { display: grid !important; place-items: start center !important; } .cell-input { display: none !important; } .print-text { display: grid !important; place-items: center; width: 100%; min-height: 36px; margin: 0 !important; padding: 0 !important; text-align: center !important; white-space: pre-line; overflow-wrap: anywhere; } .musical-note { display: block; background: transparent; }
 }
 @media (max-width: 760px) { .note-notation { grid-template-columns: repeat(var(--phrase-columns, 4), minmax(0, 1fr)); gap: 4px; } .note-group, .musical-note { min-height: 70px; height: 70px; } .note-group::before { top: 14px; right: 4%; left: 10%; height: 2px; box-shadow: 0 4px 0 currentColor; } .note-head, .note-state-empty .note-head { top: 48px; width: 18px; height: 12px; } .note-stem { top: 14px; height: 35px; left: 50%; } .note-rulo { top: 32px; width: 22px; } }
 @media (max-width: 760px) { .phrase-header-actions { gap: 12px; } .note-group::before { height: 3px; box-shadow: 0 6px 0 currentColor; } }
@@ -156,4 +158,18 @@ h2 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
   .cell-input { white-space: nowrap; overflow: visible; overflow-wrap: normal; word-break: keep-all; font-size: clamp(7px, 1.05vw, 13px); }
   .cell-input.has-content { white-space: nowrap; overflow: visible; }
   .music-sheet { padding-left: clamp(10px, 3vw, 42px); padding-right: clamp(10px, 3vw, 42px); }
+}
+@media screen and (max-width: 800px) {
+  .controls-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; width: 100%; padding: 18px 4px 0; }
+  .controls-panel > .panel-heading,
+  .controls-panel > .field-label,
+  .controls-panel > .text-input,
+  .controls-panel > .control-section,
+  .controls-panel > .helper-section,
+  .controls-panel > .phrase-actions { grid-column: 1; grid-row: auto; width: 100%; }
+  .controls-panel .panel-heading { margin-bottom: 2px; }
+  .controls-panel .control-section { padding: 16px 0; }
+  .controls-panel .helper-section { padding-top: 4px; }
+  .controls-panel .phrase-actions { display: flex; gap: 10px; }
+  .controls-panel .phrase-action { flex: 1; }
 }
