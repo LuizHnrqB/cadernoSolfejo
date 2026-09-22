@@ -1,4 +1,4 @@
-# Solfejo Numérico
+# Caderninho de Estudos Musical
 
 Editor HTML básico para criar folhas de solfejo com números, pontos e traços.
 

@@ -171,6 +171,9 @@ function renderPhrase(phrase, phraseIndex) {
   phraseTitle.placeholder = `Título da frase ${phraseIndex + 1}`;
   phraseTitle.value = phrase.title;
   phraseTitle.setAttribute('aria-label', `Título da frase ${phraseIndex + 1}`);
+  const printPhraseTitle = document.createElement('span');
+  printPhraseTitle.className = 'print-phrase-title';
+  printPhraseTitle.textContent = phrase.title || `Frase ${phraseIndex + 1}`;
   phraseTitle.addEventListener('input', () => {
     phrases[phraseIndex].title = phraseTitle.value;
     save();
@@ -207,7 +210,7 @@ function renderPhrase(phrase, phraseIndex) {
   paletteDialog.querySelectorAll('[data-palette]').forEach((picker) => {
     picker.addEventListener('input', () => {
       phrase.palette[picker.dataset.palette] = picker.value;
-      applyPhrasePalette(phraseElement, phrase.palette);
+      applyPhrasePalette(phraseElement, phrase.palette, phraseIndex);
       save();
     });
   });
@@ -231,7 +234,7 @@ function renderPhrase(phrase, phraseIndex) {
     upperHint.textContent = 'Linha superior (opcional)';
   }
   if (phrase.noteMode) phraseElement.classList.add('note-mode');
-  phraseTitleWrap.append(phraseTitle, phraseUnderline);
+  phraseTitleWrap.append(phraseTitle, printPhraseTitle, phraseUnderline);
   const phraseHeader = document.createElement('div');
   phraseHeader.className = 'phrase-header';
   const phraseActions = document.createElement('div');
@@ -280,7 +283,7 @@ function renderPhrase(phrase, phraseIndex) {
     } else {
       const groupId = previous.groupId || createGroupId();
       previous.groupId = groupId;
-      previous.groupTitle = previous.groupTitle || previous.title || 'Grupo de frases';
+      previous.groupTitle = previous.groupTitle || 'Grupo de frases';
       phrase.groupId = groupId;
       phrase.groupTitle = previous.groupTitle;
     }
@@ -292,11 +295,13 @@ function renderPhrase(phrase, phraseIndex) {
   phraseElement.append(phraseHeader, paletteDialog);
   if (upperHint) phraseElement.append(upperHint);
   phraseElement.append(notation);
-  applyPhrasePalette(phraseElement, phrase.palette);
+  applyPhrasePalette(phraseElement, phrase.palette, phraseIndex);
   return phraseElement;
 }
 
-function applyPhrasePalette(phraseElement, palette) {
+function applyPhrasePalette(phraseElement, palette, phraseIndex = 0) {
+  const backgroundTone = phraseIndex % 2 === 0 ? 'var(--blue)' : 'var(--cream)';
+  phraseElement.style.setProperty('--phrase-bg', `color-mix(in srgb, ${backgroundTone} 16%, #fffdf4)`);
   phraseElement.querySelector('.phrase-title').style.color = palette.title;
   phraseElement.querySelectorAll('.symbol').forEach((element) => element.style.color = palette.symbol);
   phraseElement.querySelectorAll('.cell-input.upper').forEach((element) => element.style.color = palette.upper);
@@ -329,14 +334,19 @@ function render() {
     groupTitle.value = groupPhrases[0].phrase.groupTitle || 'Grupo de frases';
     groupTitle.placeholder = 'Título do grupo';
     groupTitle.setAttribute('aria-label', 'Título do grupo de frases');
+    const printGroupTitle = document.createElement('span');
+    printGroupTitle.className = 'print-group-title';
+    printGroupTitle.textContent = groupTitle.value;
     groupTitle.addEventListener('input', () => {
       groupPhrases.forEach(({ phrase: groupedPhrase }) => { groupedPhrase.groupTitle = groupTitle.value; });
+      printGroupTitle.textContent = groupTitle.value;
       save();
     });
     const groupContent = document.createElement('div');
     groupContent.className = 'group-content';
     groupContent.append(...groupPhrases.map(({ phrase: groupedPhrase, index: groupedIndex }) => renderPhrase(groupedPhrase, groupedIndex)));
-    group.append(groupTitle, groupContent);
+    group.append(groupTitle, printGroupTitle, groupContent);
+    group.style.setProperty('--phrase-bg', 'transparent');
     rendered.push(group);
   }
   phrasesElement.replaceChildren(...rendered);
@@ -348,7 +358,7 @@ function render() {
   });
   document.querySelectorAll('.cell-input.upper').forEach((input) => input.style.color = colors.upper);
   document.querySelectorAll('.cell-input.lower').forEach((input) => input.style.color = colors.lower);
-  document.querySelectorAll('.phrase').forEach((phraseElement, index) => applyPhrasePalette(phraseElement, phrases[index].palette));
+  document.querySelectorAll('.phrase').forEach((phraseElement, index) => applyPhrasePalette(phraseElement, phrases[index].palette, index));
 }
 
 function escapeAttribute(value) {
