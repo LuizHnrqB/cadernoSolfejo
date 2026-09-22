@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Solfejo Numérico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">♪</div>
+      <div>
+        <p class="eyebrow">Caderno de solfejo</p>
+        <h1>Solfejo Numérico</h1>
+      </div>
+      <button class="button button-dark" id="printButton" type="button">Imprimir folha</button>
+    </header>
+
+    <section class="workspace" aria-label="Editor de solfejo">
+      <aside class="controls-panel">
+        <div class="panel-heading">
+          <p class="eyebrow">Editor</p>
+          <h2>Monte sua frase</h2>
+        </div>
+
+        <label class="field-label" for="titleInput">Título da folha</label>
+        <input class="text-input" id="titleInput" type="text" value="Xote" maxlength="40">
+
+        <div class="control-section">
+          <div class="section-title-row">
+            <span>Paleta</span>
+            <button class="text-button" id="resetColors" type="button">Restaurar</button>
+          </div>
+          <label class="color-row" for="titleColor"><span>Título</span><input id="titleColor" type="color" value="#111111"></label>
+          <label class="color-row" for="symbolColor"><span>Marcação</span><input id="symbolColor" type="color" value="#111111"></label>
+          <label class="color-row" for="upperColor"><span>Texto acima</span><input id="upperColor" type="color" value="#e92d3d"></label>
+          <label class="color-row" for="lowerColor"><span>Texto abaixo</span><input id="lowerColor" type="color" value="#111111"></label>
+        </div>
+
+        <div class="control-section helper-section">
+          <span class="section-title">Como usar</span>
+          <p>A sequência é fixa. Escreva as sílabas acima ou abaixo dela e ajuste as cores.</p>
+        </div>
+        <div class="phrase-actions">
+          <button class="button button-accent phrase-action" id="addPhraseButton" type="button">+ Nova frase</button>
+          <button class="button button-quiet phrase-action" id="removePhraseButton" type="button">- Remover frase</button>
+        </div>
+      </aside>
+
+      <section class="sheet-area">
+        <div class="sheet-toolbar">
+          <span><strong id="phraseCount">1</strong> frase</span>
+          <span class="status-dot">Alterações salvas no navegador</span>
+        </div>
+        <article class="music-sheet" id="musicSheet">
+          <div class="sheet-title-wrap">
+            <input class="sheet-title" id="sheetTitle" type="text" value="Xote" aria-label="Título da folha">
+            <div class="title-underline"></div>
+          </div>
+          <div class="phrases" id="phrases" aria-label="Frases musicais"></div>
+        </article>
+      </section>
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
