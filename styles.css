@@ -215,13 +215,15 @@ h2 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
   .phrase-header-actions button { flex: 0 0 auto; }
 }
 @media print {
-  .music-sheet { min-height: auto !important; height: auto !important; overflow: visible !important; }
+  .music-sheet { min-height: auto !important; height: auto !important; overflow: visible !important; padding-top: 24px !important; }
+  .sheet-title-wrap { margin-bottom: 28px !important; break-after: avoid !important; page-break-after: avoid !important; }
+  .phrases { break-before: avoid !important; page-break-before: avoid !important; }
   .phrases { display: block !important; width: 100% !important; }
-  .phrase, .phrase-group { break-inside: avoid !important; page-break-inside: avoid !important; box-decoration-break: clone; }
+  .phrase, .phrase-group { box-decoration-break: clone; }
   .phrase { display: block !important; margin: 0 0 18px !important; }
-  .phrase-group { display: block !important; margin: 0 0 22px !important; }
+  .phrase-group { display: block !important; margin: 0 0 22px !important; break-inside: auto !important; page-break-inside: auto !important; }
   .group-content { display: block !important; }
-  .phrase-group .phrase { margin: 0 0 14px !important; }
+  .phrase-group .phrase { margin: 0 0 14px !important; break-inside: avoid !important; page-break-inside: avoid !important; }
   .phrase-group .phrase:last-child { margin-bottom: 0 !important; }
   .notation, .note-notation { break-inside: avoid !important; page-break-inside: avoid !important; }
 }
