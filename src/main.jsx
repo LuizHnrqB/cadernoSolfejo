@@ -515,6 +515,7 @@ function App() {
   }, []);
 
   const activePage = pages.find((page) => page.id === activePageId) || pages[0];
+  const activePageIndex = pages.findIndex((page) => page.id === activePage.id);
   const phrases = activePage.phrases;
   const setPhrases = (updater) => setPages((current) => current.map((page) => page.id === activePage.id ? { ...page, phrases: typeof updater === 'function' ? updater(page.phrases) : updater } : page));
   const setTitle = (title) => setPages((current) => current.map((page) => page.id === activePage.id ? { ...page, title } : page));
@@ -638,7 +639,7 @@ function App() {
       <button className="page-tab-add" type="button" title="Adicionar uma nova página" aria-label="Adicionar uma nova página" onClick={addPage}>+ Nova página</button>
     </div>
     <section className="workspace" aria-label="Editor de solfejo">
-      <section className="sheet-area"><div className="sheet-toolbar"><span><strong>{phrases.length}</strong>{phrases.length === 1 ? ' frase' : ' frases'}</span><span className="status-dot">Alterações salvas no navegador</span></div><article className="music-sheet"><div className="sheet-title-wrap"><input className="sheet-title" value={activePage.title} type="text" aria-label="Título da folha" onChange={(event) => setTitle(event.target.value)} /><div className="title-underline"></div></div><div className="phrases" aria-label="Frases musicais">{items}</div></article></section>
+      <section className="sheet-area"><div className="sheet-toolbar"><span><strong>{phrases.length}</strong>{phrases.length === 1 ? ' frase' : ' frases'}</span><span className="status-dot">Alterações salvas no navegador</span></div><article className="music-sheet"><div className="sheet-title-wrap"><input className="sheet-title" value={activePage.title} type="text" placeholder={`Página ${activePageIndex + 1}`} aria-label="Título da folha" onChange={(event) => setTitle(event.target.value)} /><div className="title-underline"></div></div><div className="phrases" aria-label="Frases musicais">{items}</div></article></section>
     </section>
   </main>;
 }

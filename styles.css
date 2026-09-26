@@ -58,6 +58,7 @@ h2 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
 .music-sheet { min-height: 525px; margin-top: 13px; padding: 50px clamp(20px, 7vw, 96px) 60px; overflow: hidden; border: 1px solid #d9d5bd; background: var(--paper); box-shadow: 0 28px 70px rgba(22, 35, 63, .12); }
 .sheet-title-wrap { width: fit-content; min-width: 150px; margin: 0 auto 96px; text-align: center; }
 .sheet-title { width: min(100%, 1000px); min-width: 180px; padding: 0; color: var(--ink); border: 0; outline: none; background: transparent; font-size: clamp(32px, 5vw, 52px); font-weight: 700; letter-spacing: -.08em; text-align: center; }
+.sheet-title::placeholder { color: #9aa3b5; opacity: 1; }
 .sheet-title-wrap { max-width: 100%; }
 .title-underline { width: 45px; height: 4px; margin: 14px auto 0; background: var(--red); }
 .phrases { display: grid; gap: 104px; width: 100%; }
