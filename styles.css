@@ -54,6 +54,8 @@ h2 { margin: 0; font-size: 24px; letter-spacing: -.04em; }
 .page-tab-add { min-height: 38px; padding: 0 14px; color: #9c7a1e; border: 1px dashed var(--cream); border-radius: 6px; background: transparent; font-size: 13px; font-weight: 700; }
 .page-tab-add:hover { background: rgba(201, 162, 39, .12); }
 .sheet-toolbar { display: flex; justify-content: space-between; align-items: center; min-height: 33px; color: #6b7280; font-size: 12px; }
+.sheet-toolbar-actions { display: flex; align-items: center; gap: 14px; }
+.sheet-toolbar-actions .button-accent { min-height: 33px; padding: 0 14px; font-size: 12px; }
 .status-dot::before { display: inline-block; width: 6px; height: 6px; margin: 0 6px 1px 0; border-radius: 50%; background: #4fa56a; content: ''; }
 .music-sheet { min-height: 525px; margin-top: 13px; padding: 50px clamp(20px, 7vw, 96px) 60px; overflow: hidden; border: 1px solid #d9d5bd; background: var(--paper); box-shadow: 0 28px 70px rgba(22, 35, 63, .12); }
 .sheet-title-wrap { width: fit-content; min-width: 150px; margin: 0 auto 96px; text-align: center; }
