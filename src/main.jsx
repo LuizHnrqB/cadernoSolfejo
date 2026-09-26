@@ -204,7 +204,7 @@ function createPageId() {
  * @returns {{id: string, title: string, phrases: Array<object>}}
  */
 function createPage(title = '') {
-  return { id: createPageId(), title, phrases: [createPhrase()] };
+  return { id: createPageId(), title, phrases: [createPhrase(true)] };
 }
 
 /**
@@ -227,7 +227,7 @@ function loadPages() {
   const legacyTitle = localStorage.getItem('solfejo-title');
   const legacyPhrases = localStorage.getItem('solfejo-phrases');
   if (legacyTitle || legacyPhrases) return [{ id: createPageId(), title: legacyTitle || '', phrases: loadPhrases() }];
-  return [createPage('Xote')];
+  return [createPage()];
 }
 
 /** Callback de parada da leitura em andamento (garante que apenas uma frase toque por vez). */
