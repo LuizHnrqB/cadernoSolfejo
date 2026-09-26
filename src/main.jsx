@@ -140,20 +140,22 @@ function normalizeSyllable(text) {
 }
 
 /**
- * Classifica a célula do solfejo numérico em um timbre de zabumba a partir da sílaba escolhida.
- * Tu = grave preso; Tum/Ku = grave aberto; Tchá/Ká = agudo (pele de resposta).
+ * Classifica a célula do solfejo numérico em um ou mais timbres de zabumba a partir das sílabas
+ * escolhidas (linha de cima e/ou de baixo). Tu = grave preso; Tum/Ku = grave aberto; Tchá/Ká = agudo
+ * (pele de resposta). Quando as duas linhas têm sílaba, ambos os timbres tocam juntos.
  * @param {{upper: string, lower: string}} cell Célula a ser classificada.
- * @returns {'preso'|'aberto'|'agudo'|null} Timbre correspondente, ou null se não reconhecido.
+ * @returns {Array<'preso'|'aberto'|'agudo'>} Timbres a tocar (vazio se nenhuma sílaba for reconhecida).
  */
-function zabumbaToneForCell(cell) {
+function zabumbaTonesForCell(cell) {
+  const tones = [];
   for (const raw of [cell.lower, cell.upper]) {
     const text = normalizeSyllable(raw || '');
     if (!text) continue;
-    if (/\btcha\b|\bka\b/.test(text)) return 'agudo';
-    if (/\btum\b|\bku\b/.test(text)) return 'aberto';
-    if (/\btu\b/.test(text)) return 'preso';
+    if (/\btcha\b|\bka\b/.test(text)) tones.push('agudo');
+    else if (/\btum\b|\bku\b/.test(text)) tones.push('aberto');
+    else if (/\btu\b/.test(text)) tones.push('preso');
   }
-  return null;
+  return tones;
 }
 
 /**
@@ -448,9 +450,9 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
         playDrumHit(cell.state, time);
         return;
       }
-      const zabumbaTone = zabumbaToneForCell(cell);
-      if (zabumbaTone) {
-        playZabumbaHit(zabumbaTone, time);
+      const zabumbaTones = zabumbaTonesForCell(cell);
+      if (zabumbaTones.length > 0) {
+        zabumbaTones.forEach((tone) => playZabumbaHit(tone, time));
         return;
       }
       const narration = narrationForCell(cell);
