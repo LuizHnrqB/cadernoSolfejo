@@ -505,6 +505,14 @@ function App() {
   useEffect(() => {
     if (activePageId) localStorage.setItem('solfejo-active-page', activePageId);
   }, [activePageId]);
+  // interrompe a leitura quando a aba/tela é ocultada (ex.: celular travado)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) activePlaybackStop?.();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   const activePage = pages.find((page) => page.id === activePageId) || pages[0];
   const phrases = activePage.phrases;
