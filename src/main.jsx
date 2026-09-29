@@ -261,11 +261,11 @@ function PaletteDialog({ phrase, phraseIndex, onChange }) {
 
 /**
  * Grade de células do solfejo numérico (números, pontos e traços) com seletores de som acima/abaixo.
- * @param {{phrase: object, phraseIndex: number, onCellChange: (cellIndex: number, key: 'upper'|'lower', value: string) => void}} props
+ * @param {{phrase: object, phraseIndex: number, onCellChange: (cellIndex: number, key: 'upper'|'lower', value: string) => void, activeCellIndex: number|null}} props
  */
-function NumericNotation({ phrase, phraseIndex, onCellChange }) {
+function NumericNotation({ phrase, phraseIndex, onCellChange, activeCellIndex }) {
   return <div className="notation" aria-label={`Linha da frase ${phraseIndex + 1}`} style={{ '--phrase-columns': phrase.cells.length, '--symbol-size': `${Math.max(24, Math.min(68, 1080 / phrase.cells.length))}px` }}>
-    {phrase.cells.map((cell, cellIndex) => <div className="notation-cell" key={cellIndex}>
+    {phrase.cells.map((cell, cellIndex) => <div className={`notation-cell${activeCellIndex === cellIndex ? ' is-reading' : ''}`} key={cellIndex}>
       <div className="text-field-wrap upper-field"><select className={`cell-input upper${cell.upper.trim() ? ' has-content' : ''}`} value={cell.upper} aria-label={`Som acima da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}`} onChange={(event) => onCellChange(cellIndex, 'upper', event.target.value)}>{zabumbaSyllables.map((syllable) => <option key={syllable || 'vazio'} value={syllable}>{syllable || '—'}</option>)}</select><span className="print-text upper">{cell.upper}</span></div>
       <div className="symbol-wrap"><span className="symbol dash-symbol" aria-label={`Marcação fixa ${cell.symbol}`}>{cell.symbol}</span></div>
       <div className="text-field-wrap lower-field"><select className={`cell-input lower${cell.lower.trim() ? ' has-content' : ''}`} value={cell.lower} aria-label={`Som abaixo da marcação ${cellIndex + 1} da frase ${phraseIndex + 1}`} onChange={(event) => onCellChange(cellIndex, 'lower', event.target.value)}>{zabumbaSyllables.map((syllable) => <option key={syllable || 'vazio'} value={syllable}>{syllable || '—'}</option>)}</select><span className="print-text lower">{cell.lower}</span></div>
