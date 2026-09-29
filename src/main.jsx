@@ -556,7 +556,7 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
   </section>;
 }
 
-function MultiPhrasePlayer({ phrases, selectedIndices, onReorder }) {
+function MultiPhrasePlayer({ phrases, selectedIndices, onReorder, onClearSelection }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [bpmInput, setBpmInput] = useState(String(phrases[selectedIndices[0]]?.bpm || 80));
   const [playMode, setPlayMode] = useState('parallel');
@@ -642,6 +642,7 @@ function MultiPhrasePlayer({ phrases, selectedIndices, onReorder }) {
     <div className="multi-player-mode" role="group" aria-label="Modo de reprodução"><button type="button" className={playMode === 'parallel' ? 'is-active' : ''} aria-pressed={playMode === 'parallel'} onClick={() => setPlayMode('parallel')}>Paralelo</button><button type="button" className={playMode === 'sequence' ? 'is-active' : ''} aria-pressed={playMode === 'sequence'} onClick={() => setPlayMode('sequence')}>Sequência</button></div>
     {playMode === 'sequence' && <div className="multi-player-repeats">{selectedIndices.map((phraseIndex, orderIndex) => <div className="multi-player-repeat-item" key={phraseIndex}><span className="multi-player-order">{orderIndex + 1}</span><span className="multi-player-repeat-title">{phrases[phraseIndex]?.title || `Frase ${phraseIndex + 1}`}</span><input type="number" min="1" max="16" value={repeatCounts[phraseIndex] || 1} aria-label={`Repetições da frase ${phraseIndex + 1}`} onChange={(event) => updateRepeatCount(phraseIndex, event.target.value)} onBlur={() => updateRepeatCount(phraseIndex, Math.min(16, Math.max(1, Number(repeatCounts[phraseIndex]) || 1)))} /><button type="button" aria-label={`Mover frase ${phraseIndex + 1} para cima`} disabled={orderIndex === 0} onClick={() => onReorder(orderIndex, -1)}>↑</button><button type="button" aria-label={`Mover frase ${phraseIndex + 1} para baixo`} disabled={orderIndex === selectedIndices.length - 1} onClick={() => onReorder(orderIndex, 1)}>↓</button></div>)}</div>}
     <label className="multi-player-bpm"><span>BPM</span><input type="number" min="30" max="240" value={bpmInput} aria-label="BPM da reprodução conjunta" onChange={(event) => updateBpm(event.target.value)} onBlur={() => { const bpm = Math.min(240, Math.max(30, Number(bpmInput) || 80)); setBpmInput(String(bpm)); }} /></label>
+    <button className="multi-player-clear" type="button" aria-label="Limpar seleção de frases" onClick={onClearSelection}>Limpar seleção</button>
     <button className={`multi-player-button${isPlaying ? ' is-playing' : ''}`} type="button" aria-label={isPlaying ? 'Parar reprodução conjunta' : 'Reproduzir frases selecionadas'} onClick={isPlaying ? stopPlayback : startPlayback}><span aria-hidden="true">{isPlaying ? '■' : '▶'}</span></button>
   </aside>;
 }
@@ -815,7 +816,7 @@ function App() {
     <section className="workspace" aria-label="Editor de solfejo">
       <section className="sheet-area"><div className="sheet-toolbar"><span><strong>{phrases.length}</strong>{phrases.length === 1 ? ' frase' : ' frases'}</span><div className="sheet-toolbar-actions"><button className="button button-accent new-phrase-button" type="button" onClick={() => setPhrases((current) => [...current, createPhrase(true)])}>+ Nova frase</button><span className="status-dot">Alterações salvas no navegador</span></div></div><article className="music-sheet"><div className="sheet-title-wrap"><input className="sheet-title" value={activePage.title} type="text" placeholder={`Página ${activePageIndex + 1}`} aria-label="Título da folha" onChange={(event) => setTitle(event.target.value)} /><div className="title-underline"></div></div><div className="phrases" aria-label="Frases musicais">{items}</div></article></section>
     </section>
-  </main>{multiSelectionActive && <MultiPhrasePlayer phrases={phrases} selectedIndices={selectedPhraseIndices} onReorder={reorderSelectedPhrases} />}</>;
+  </main>{multiSelectionActive && <MultiPhrasePlayer phrases={phrases} selectedIndices={selectedPhraseIndices} onReorder={reorderSelectedPhrases} onClearSelection={() => setSelectedPhraseIndices([])} />}</>;
 }
 
 const rootElement = document.getElementById('root');
