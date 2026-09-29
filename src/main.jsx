@@ -8,6 +8,7 @@ const tcháSoundUrl = '/Sons/Tchá.wav';
 const tumSoundUrl = '/Sons/Tum.wav';
 
 const defaultPalette = { title: '#16233f', symbol: '#16233f', upper: '#2a5578', lower: '#16233f' };
+const visualSyncDelay = 0.14;
 const legacyDefaultPalette = { title: '#111111', symbol: '#111111', upper: '#e92d3d', lower: '#111111' };
 const knownDefaultPalettes = [
   legacyDefaultPalette,
@@ -236,6 +237,65 @@ function loadPages() {
 
 /** Callback de parada da leitura em andamento (garante que apenas uma frase toque por vez). */
 let activePlaybackStop = null;
+let sharedZabumbaBuffers = null;
+let sharedZabumbaBuffersPromise = null;
+let sharedDrumBuffers = null;
+
+async function prepareSharedZabumbaBuffers() {
+  if (sharedZabumbaBuffers) return sharedZabumbaBuffers;
+  if (sharedZabumbaBuffersPromise) return sharedZabumbaBuffersPromise;
+  const audioContext = Tone.getContext().rawContext;
+  const soundUrls = { preso: tuSoundUrl, aberto: tumSoundUrl, agudo: tcháSoundUrl };
+  sharedZabumbaBuffersPromise = Promise.all(Object.entries(soundUrls).map(async ([tone, url]) => {
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Não foi possível carregar o som ${tone}.`);
+    return [tone, await audioContext.decodeAudioData(await response.arrayBuffer())];
+  })).then((entries) => {
+    sharedZabumbaBuffers = Object.fromEntries(entries);
+    return sharedZabumbaBuffers;
+  });
+  return sharedZabumbaBuffersPromise;
+}
+
+function prepareSharedDrumBuffers() {
+  if (sharedDrumBuffers) return sharedDrumBuffers;
+  const audioContext = Tone.getContext().rawContext;
+  sharedDrumBuffers = ['empty', 'filled', 'roll'].reduce((buffers, state) => {
+    const duration = state === 'roll' ? 0.095 : 0.13;
+    const buffer = audioContext.createBuffer(1, Math.ceil(audioContext.sampleRate * duration), audioContext.sampleRate);
+    const data = buffer.getChannelData(0);
+    const level = state === 'filled' ? 0.72 : state === 'roll' ? 0.58 : 0.18;
+    for (let index = 0; index < data.length; index += 1) {
+      const time = index / audioContext.sampleRate;
+      const envelope = Math.exp(-time * 34);
+      const tone = Math.sin(2 * Math.PI * (state === 'filled' ? 180 : 145) * time) * 0.7;
+      const noise = (Math.random() * 2 - 1) * 0.8;
+      data[index] = (tone + noise) * envelope * level;
+    }
+    buffers[state] = buffer;
+    return buffers;
+  }, {});
+  return sharedDrumBuffers;
+}
+
+function playSharedZabumbaHit(tone, time) {
+  const source = Tone.getContext().rawContext.createBufferSource();
+  source.buffer = sharedZabumbaBuffers[tone];
+  source.connect(Tone.getContext().rawContext.destination);
+  source.start(time);
+}
+
+function playSharedDrumHit(state, time) {
+  const audioContext = Tone.getContext().rawContext;
+  const buffers = prepareSharedDrumBuffers();
+  const hitCount = state === 'roll' ? 3 : 1;
+  for (let hitIndex = 0; hitIndex < hitCount; hitIndex += 1) {
+    const source = audioContext.createBufferSource();
+    source.buffer = buffers[state];
+    source.connect(audioContext.destination);
+    source.start(time + hitIndex * 0.028);
+  }
+}
 
 /**
  * Botão + diálogo modal para editar as cores (título, marcação, textos) de uma frase.
@@ -300,10 +360,13 @@ function NoteNotation({ phrase, phraseIndex, onNoteChange, activeCellIndex }) {
  *   onAddToGroup: () => void,
  *   onDuplicate: () => void,
  *   onRemove: () => void,
- *   onUngroup: () => void
+ *   onUngroup: () => void,
+ *   isSelected: boolean,
+ *   onToggleSelection: () => void,
+ *   multiSelectionActive: boolean
  * }} props
  */
-function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDuplicate, onRemove, onUngroup }) {
+function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDuplicate, onRemove, onUngroup, isSelected, onToggleSelection, multiSelectionActive }) {
   // alterna o tom de fundo (azul/dourado) entre frases consecutivas
   const style = { '--phrase-bg': `color-mix(in srgb, ${phraseIndex % 2 === 0 ? 'var(--blue)' : 'var(--cream)'} 18%, #fffdf4)`, '--phrase-title': phrase.palette.title, '--symbol': phrase.palette.symbol, '--upper': phrase.palette.upper, '--lower': phrase.palette.lower };
   const [isPlaying, setIsPlaying] = useState(false);
@@ -449,7 +512,7 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
       const currentCells = currentPhrase.noteMode ? currentPhrase.noteCells : currentPhrase.cells;
       const cell = currentCells[index];
       if (!cell) return;
-      Tone.Draw.schedule(() => setActiveCellIndex(index), time);
+      Tone.Draw.schedule(() => setActiveCellIndex(index), time + visualSyncDelay);
       if (currentPhrase.noteMode) {
         playDrumHit(cell.state, time);
         return;
@@ -477,8 +540,8 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
   useEffect(() => { setBpmInput(String(phrase.bpm)); }, [phrase.bpm]);
   return <section className={`phrase${phrase.noteMode ? ' note-mode' : ''}`} style={style}>
     <div className="phrase-header">
-      <select className="mode-select" value={phrase.noteMode ? 'notes' : 'numeric'} aria-label={`Modo da frase ${phraseIndex + 1}`} onChange={(event) => { const mode = event.target.value; onChange((current) => ({ ...current, noteMode: mode === 'notes' })); }}><option value="numeric">Solfejo numérico</option><option value="notes">Notas</option></select>
-      <div className="phrase-title-wrap"><div className="phrase-title-row"><input className="phrase-title" value={phrase.title} type="text" placeholder={`Título da frase ${phraseIndex + 1}`} aria-label={`Título da frase ${phraseIndex + 1}`} onChange={(event) => { const title = event.target.value; onChange((current) => ({ ...current, title })); }} /><div className="phrase-playback-controls"><label className="playback-bpm"><span>BPM</span><input type="number" min="30" max="240" value={bpmInput} aria-label={`BPM da frase ${phraseIndex + 1}`} onChange={(event) => updateBpmInput(event.target.value)} onBlur={commitBpm} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label><button className={`phrase-playback-button${isPlaying ? ' is-playing' : ''}`} type="button" title={isPlaying ? 'Parar leitura' : 'Ler frase'} aria-label={isPlaying ? `Parar frase ${phraseIndex + 1}` : `Ler frase ${phraseIndex + 1}`} onClick={isPlaying ? stopPlayback : startPlayback}><span aria-hidden="true">{isPlaying ? '■' : '▶'}</span></button></div></div><span className="print-phrase-title">{phrase.title || `Frase ${phraseIndex + 1}`}</span><div className="phrase-title-underline"></div></div>
+      <label className="phrase-selection"><input type="checkbox" checked={isSelected} aria-label={`Selecionar frase ${phraseIndex + 1} para reprodução conjunta`} onChange={onToggleSelection} /><span>Reprodução simultânea</span></label><select className="mode-select" value={phrase.noteMode ? 'notes' : 'numeric'} aria-label={`Modo da frase ${phraseIndex + 1}`} onChange={(event) => { const mode = event.target.value; onChange((current) => ({ ...current, noteMode: mode === 'notes' })); }}><option value="numeric">Solfejo numérico</option><option value="notes">Notas</option></select>
+      <div className="phrase-title-wrap"><div className="phrase-title-row"><input className="phrase-title" value={phrase.title} type="text" placeholder={`Título da frase ${phraseIndex + 1}`} aria-label={`Título da frase ${phraseIndex + 1}`} onChange={(event) => { const title = event.target.value; onChange((current) => ({ ...current, title })); }} /><div className="phrase-playback-controls"><label className="playback-bpm"><span>BPM</span><input type="number" min="30" max="240" value={bpmInput} aria-label={`BPM da frase ${phraseIndex + 1}`} onChange={(event) => updateBpmInput(event.target.value)} onBlur={commitBpm} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /></label><button className={`phrase-playback-button${isPlaying ? ' is-playing' : ''}`} type="button" title={multiSelectionActive ? 'Use o player conjunto' : isPlaying ? 'Parar leitura' : 'Ler frase'} aria-label={isPlaying ? `Parar frase ${phraseIndex + 1}` : `Ler frase ${phraseIndex + 1}`} disabled={multiSelectionActive} onClick={isPlaying ? stopPlayback : startPlayback}><span aria-hidden="true">{isPlaying ? '■' : '▶'}</span></button></div></div><span className="print-phrase-title">{phrase.title || `Frase ${phraseIndex + 1}`}</span><div className="phrase-title-underline"></div></div>
       <div className="phrase-header-actions">
         <select className="beat-select" value={phrase.beatCount} aria-label={`Quantidade de tempos da frase ${phraseIndex + 1}`} onChange={(event) => { const beatCount = Number(event.target.value); onChange((current) => ({ ...current, beatCount, cells: createCells(beatCount, current.cells) })); }}>{Array.from({ length: 8 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1} {index ? 'tempos' : 'tempo'}</option>)}</select>
         <PaletteDialog phrase={phrase} phraseIndex={phraseIndex} onChange={(key, value) => onChange((current) => ({ ...current, palette: { ...current.palette, [key]: value } }))} />
@@ -491,6 +554,96 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
     {!phrase.noteMode && <div className="upper-hint">Linha superior (opcional)</div>}
     {phrase.noteMode ? <NoteNotation phrase={phrase} phraseIndex={phraseIndex} activeCellIndex={activeCellIndex} onNoteChange={(noteIndex) => onChange((current) => ({ ...current, noteCells: current.noteCells.map((note, index) => index === noteIndex ? { ...note, state: nextNoteState(note.state) } : note) }))} /> : <NumericNotation phrase={phrase} phraseIndex={phraseIndex} onCellChange={updateCell} activeCellIndex={activeCellIndex} />}
   </section>;
+}
+
+function MultiPhrasePlayer({ phrases, selectedIndices, onReorder }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [bpmInput, setBpmInput] = useState(String(phrases[selectedIndices[0]]?.bpm || 80));
+  const [playMode, setPlayMode] = useState('parallel');
+  const [repeatCounts, setRepeatCounts] = useState({});
+  const sequenceRefs = useRef([]);
+  const phrasesRef = useRef(phrases);
+  const selectedRef = useRef(selectedIndices);
+  const repeatCountsRef = useRef(repeatCounts);
+  phrasesRef.current = phrases;
+  selectedRef.current = selectedIndices;
+  repeatCountsRef.current = repeatCounts;
+  const selectionKey = selectedIndices.join(',');
+
+  const stopPlayback = () => {
+    sequenceRefs.current.forEach((sequence) => sequence.dispose());
+    sequenceRefs.current = [];
+    Tone.Transport.stop();
+    Tone.Transport.cancel();
+    setIsPlaying(false);
+    if (activePlaybackStop === stopPlayback) activePlaybackStop = null;
+  };
+
+  const startPlayback = async () => {
+    activePlaybackStop?.();
+    activePlaybackStop = stopPlayback;
+    await Tone.start();
+    await prepareSharedZabumbaBuffers();
+    prepareSharedDrumBuffers();
+    const bpm = Math.min(240, Math.max(30, Number(bpmInput) || 80));
+    setBpmInput(String(bpm));
+    Tone.Transport.bpm.value = bpm;
+    const playCell = (time, phraseIndex, cellIndex) => {
+      const currentPhrase = phrasesRef.current[phraseIndex];
+      const currentCells = currentPhrase.noteMode ? currentPhrase.noteCells : currentPhrase.cells;
+      const cell = currentCells[cellIndex];
+      if (!cell) return;
+      if (currentPhrase.noteMode) {
+        playSharedDrumHit(cell.state, time);
+        return;
+      }
+      zabumbaTonesForCell(cell).forEach((tone) => playSharedZabumbaHit(tone, time));
+    };
+    if (playMode === 'parallel') {
+      sequenceRefs.current = selectedRef.current.map((phraseIndex) => {
+        const phrase = phrasesRef.current[phraseIndex];
+        const cells = phrase.noteMode ? phrase.noteCells.slice(0, phrase.beatCount * 4) : phrase.cells;
+        return new Tone.Sequence((time, cellIndex) => playCell(time, phraseIndex, cellIndex), cells.map((_, index) => index), '16n').start(0);
+      });
+    } else {
+      const events = [];
+      selectedRef.current.forEach((phraseIndex) => {
+        const phrase = phrasesRef.current[phraseIndex];
+        const cells = phrase.noteMode ? phrase.noteCells.slice(0, phrase.beatCount * 4) : phrase.cells;
+        const repetitions = Math.min(16, Math.max(1, Number(repeatCountsRef.current[phraseIndex]) || 1));
+        for (let repetition = 0; repetition < repetitions; repetition += 1) cells.forEach((_, cellIndex) => events.push({ phraseIndex, cellIndex }));
+      });
+      sequenceRefs.current = [new Tone.Sequence((time, event) => playCell(time, event.phraseIndex, event.cellIndex), events, '16n').start(0)];
+    }
+    Tone.Transport.start();
+    setIsPlaying(true);
+  };
+
+  const updateBpm = (value) => {
+    setBpmInput(value);
+    const bpm = Number(value);
+    if (Number.isInteger(bpm) && bpm >= 30 && bpm <= 240 && isPlaying) Tone.Transport.bpm.value = bpm;
+  };
+
+  const updateRepeatCount = (phraseIndex, value) => setRepeatCounts((current) => ({ ...current, [phraseIndex]: value }));
+
+  useEffect(() => {
+    setBpmInput(String(phrases[selectedIndices[0]]?.bpm || 80));
+    setRepeatCounts((current) => Object.fromEntries(selectedIndices.map((index) => [index, current[index] || 1])));
+    if (isPlaying) stopPlayback();
+  }, [selectionKey, playMode]);
+  useEffect(() => {
+    if (isPlaying) Tone.Transport.bpm.value = Math.min(240, Math.max(30, Number(bpmInput) || 80));
+  }, [bpmInput, isPlaying]);
+  useEffect(() => stopPlayback, []);
+
+  return <aside className="multi-player" aria-label="Player conjunto de frases">
+    <div className="multi-player-heading"><strong>{selectedIndices.length} frases selecionadas</strong><span>{playMode === 'parallel' ? 'Reprodução simultânea' : 'Reprodução em sequência'}</span></div>
+    <div className="multi-player-mode" role="group" aria-label="Modo de reprodução"><button type="button" className={playMode === 'parallel' ? 'is-active' : ''} aria-pressed={playMode === 'parallel'} onClick={() => setPlayMode('parallel')}>Paralelo</button><button type="button" className={playMode === 'sequence' ? 'is-active' : ''} aria-pressed={playMode === 'sequence'} onClick={() => setPlayMode('sequence')}>Sequência</button></div>
+    {playMode === 'sequence' && <div className="multi-player-repeats">{selectedIndices.map((phraseIndex, orderIndex) => <div className="multi-player-repeat-item" key={phraseIndex}><span className="multi-player-order">{orderIndex + 1}</span><span className="multi-player-repeat-title">{phrases[phraseIndex]?.title || `Frase ${phraseIndex + 1}`}</span><input type="number" min="1" max="16" value={repeatCounts[phraseIndex] || 1} aria-label={`Repetições da frase ${phraseIndex + 1}`} onChange={(event) => updateRepeatCount(phraseIndex, event.target.value)} onBlur={() => updateRepeatCount(phraseIndex, Math.min(16, Math.max(1, Number(repeatCounts[phraseIndex]) || 1)))} /><button type="button" aria-label={`Mover frase ${phraseIndex + 1} para cima`} disabled={orderIndex === 0} onClick={() => onReorder(orderIndex, -1)}>↑</button><button type="button" aria-label={`Mover frase ${phraseIndex + 1} para baixo`} disabled={orderIndex === selectedIndices.length - 1} onClick={() => onReorder(orderIndex, 1)}>↓</button></div>)}</div>}
+    <label className="multi-player-bpm"><span>BPM</span><input type="number" min="30" max="240" value={bpmInput} aria-label="BPM da reprodução conjunta" onChange={(event) => updateBpm(event.target.value)} onBlur={() => { const bpm = Math.min(240, Math.max(30, Number(bpmInput) || 80)); setBpmInput(String(bpm)); }} /></label>
+    <button className={`multi-player-button${isPlaying ? ' is-playing' : ''}`} type="button" aria-label={isPlaying ? 'Parar reprodução conjunta' : 'Reproduzir frases selecionadas'} onClick={isPlaying ? stopPlayback : startPlayback}><span aria-hidden="true">{isPlaying ? '■' : '▶'}</span></button>
+  </aside>;
 }
 
 /**
@@ -525,8 +678,18 @@ function App() {
   const activePage = pages.find((page) => page.id === activePageId) || pages[0];
   const activePageIndex = pages.findIndex((page) => page.id === activePage.id);
   const phrases = activePage.phrases;
+  const [selectedPhraseIndices, setSelectedPhraseIndices] = useState([]);
+  const multiSelectionActive = selectedPhraseIndices.length >= 2;
   const setPhrases = (updater) => setPages((current) => current.map((page) => page.id === activePage.id ? { ...page, phrases: typeof updater === 'function' ? updater(page.phrases) : updater } : page));
   const setTitle = (title) => setPages((current) => current.map((page) => page.id === activePage.id ? { ...page, title } : page));
+  const togglePhraseSelection = (phraseIndex) => setSelectedPhraseIndices((current) => current.includes(phraseIndex) ? current.filter((index) => index !== phraseIndex) : [...current, phraseIndex].sort((a, b) => a - b));
+  const reorderSelectedPhrases = (orderIndex, direction) => setSelectedPhraseIndices((current) => {
+    const targetIndex = orderIndex + direction;
+    if (targetIndex < 0 || targetIndex >= current.length) return current;
+    const next = [...current];
+    [next[orderIndex], next[targetIndex]] = [next[targetIndex], next[orderIndex]];
+    return next;
+  });
 
   /** Cria uma nova página em branco e a torna a página ativa. */
   const addPage = () => {
@@ -608,7 +771,10 @@ function App() {
    * Remove uma frase da página (nunca deixa a página vazia) e desfaz grupos que ficarem órfãos.
    * @param {number} phraseIndex Índice da frase a remover.
    */
-  const removePhrase = (phraseIndex) => setPhrases((current) => current.length === 1 ? current : releaseSingletonGroups(current.filter((_, itemIndex) => itemIndex !== phraseIndex)));
+  const removePhrase = (phraseIndex) => {
+    setSelectedPhraseIndices((current) => current.filter((index) => index !== phraseIndex).map((index) => index > phraseIndex ? index - 1 : index));
+    setPhrases((current) => current.length === 1 ? current : releaseSingletonGroups(current.filter((_, itemIndex) => itemIndex !== phraseIndex)));
+  };
   /**
    * Duplica uma frase, inserindo a cópia logo após a original (sempre fora de qualquer grupo).
    * @param {number} phraseIndex Índice da frase original.
@@ -627,17 +793,17 @@ function App() {
     const phraseIndex = index;
     const phrase = phrases[phraseIndex];
     if (!phrase.groupId) {
-      items.push(<Phrase key={`phrase-${phraseIndex}`} phrase={phrase} phraseIndex={phraseIndex} phraseCount={phrases.length} onChange={(update) => changePhrase(phraseIndex, update)} onAddToGroup={() => addPhraseToGroup(phraseIndex)} onDuplicate={() => duplicatePhrase(phraseIndex, true)} onRemove={() => removePhrase(phraseIndex)} onUngroup={() => ungroupPhrase(phraseIndex)} />);
+      items.push(<Phrase key={`phrase-${phraseIndex}`} phrase={phrase} phraseIndex={phraseIndex} phraseCount={phrases.length} isSelected={selectedPhraseIndices.includes(phraseIndex)} onToggleSelection={() => togglePhraseSelection(phraseIndex)} multiSelectionActive={multiSelectionActive} onChange={(update) => changePhrase(phraseIndex, update)} onAddToGroup={() => addPhraseToGroup(phraseIndex)} onDuplicate={() => duplicatePhrase(phraseIndex, true)} onRemove={() => removePhrase(phraseIndex)} onUngroup={() => ungroupPhrase(phraseIndex)} />);
       index += 1;
       continue;
     }
     const groupId = phrase.groupId;
     const group = [];
     while (index < phrases.length && phrases[index].groupId === groupId) { group.push({ phrase: phrases[index], index }); index += 1; }
-    items.push(<section className="phrase-group" key={groupId}><div className="group-heading"><input className="group-title" value={group[0].phrase.groupTitle || 'Grupo de frases'} placeholder="Título do grupo" aria-label="Título do grupo de frases" onChange={(event) => { const groupTitle = event.target.value; setPhrases((current) => current.map((item) => item.groupId === groupId ? { ...item, groupTitle } : item)); }} /><span className="print-group-title">{group[0].phrase.groupTitle || 'Grupo de frases'}</span></div><div className="group-content">{group.map(({ phrase: groupedPhrase, index: groupedIndex }) => <Phrase key={`phrase-${groupedIndex}`} phrase={groupedPhrase} phraseIndex={groupedIndex} phraseCount={phrases.length} onChange={(update) => changePhrase(groupedIndex, update)} onAddToGroup={() => addPhraseToGroup(groupedIndex)} onDuplicate={() => duplicatePhrase(groupedIndex, false)} onRemove={() => removePhrase(groupedIndex)} onUngroup={() => ungroupPhrase(groupedIndex)} />)}</div></section>);
+    items.push(<section className="phrase-group" key={groupId}><div className="group-heading"><input className="group-title" value={group[0].phrase.groupTitle || 'Grupo de frases'} placeholder="Título do grupo" aria-label="Título do grupo de frases" onChange={(event) => { const groupTitle = event.target.value; setPhrases((current) => current.map((item) => item.groupId === groupId ? { ...item, groupTitle } : item)); }} /><span className="print-group-title">{group[0].phrase.groupTitle || 'Grupo de frases'}</span></div><div className="group-content">{group.map(({ phrase: groupedPhrase, index: groupedIndex }) => <Phrase key={`phrase-${groupedIndex}`} phrase={groupedPhrase} phraseIndex={groupedIndex} phraseCount={phrases.length} isSelected={selectedPhraseIndices.includes(groupedIndex)} onToggleSelection={() => togglePhraseSelection(groupedIndex)} multiSelectionActive={multiSelectionActive} onChange={(update) => changePhrase(groupedIndex, update)} onAddToGroup={() => addPhraseToGroup(groupedIndex)} onDuplicate={() => duplicatePhrase(groupedIndex, false)} onRemove={() => removePhrase(groupedIndex)} onUngroup={() => ungroupPhrase(groupedIndex)} />)}</div></section>);
   }
 
-  return <main className="app-shell">
+  return <><main className="app-shell">
     <header className="topbar"><div className="brand-mark" aria-hidden="true">♪</div><div><p className="eyebrow">Caderno de solfejo</p><h1>Caderninho de Estudos Musical</h1></div><div className="topbar-actions"><button className="button button-quiet" type="button" title="Exportar a página atual para um arquivo" onClick={exportPage}>Exportar página</button><button className="button button-quiet" type="button" title="Importar uma página de um arquivo exportado" onClick={() => importFileRef.current?.click()}>Importar página</button><input ref={importFileRef} type="file" accept="application/json" hidden onChange={importPage} /><button className="button button-dark" type="button" title="Abrir opções para salvar a folha em PDF" onClick={() => window.print()}>Salvar PDF</button></div></header>
     <div className="page-tabs" role="tablist" aria-label="Páginas do caderno">
       {pages.map((page, pageIndex) => <div className="page-tab-wrap" key={page.id}>
@@ -647,9 +813,9 @@ function App() {
       <button className="page-tab-add" type="button" title="Adicionar uma nova página" aria-label="Adicionar uma nova página" onClick={addPage}>+ Nova página</button>
     </div>
     <section className="workspace" aria-label="Editor de solfejo">
-      <section className="sheet-area"><div className="sheet-toolbar"><span><strong>{phrases.length}</strong>{phrases.length === 1 ? ' frase' : ' frases'}</span><div className="sheet-toolbar-actions"><button className="button button-accent" type="button" onClick={() => setPhrases((current) => [...current, createPhrase(true)])}>+ Nova frase</button><span className="status-dot">Alterações salvas no navegador</span></div></div><article className="music-sheet"><div className="sheet-title-wrap"><input className="sheet-title" value={activePage.title} type="text" placeholder={`Página ${activePageIndex + 1}`} aria-label="Título da folha" onChange={(event) => setTitle(event.target.value)} /><div className="title-underline"></div></div><div className="phrases" aria-label="Frases musicais">{items}</div></article></section>
+      <section className="sheet-area"><div className="sheet-toolbar"><span><strong>{phrases.length}</strong>{phrases.length === 1 ? ' frase' : ' frases'}</span><div className="sheet-toolbar-actions"><button className="button button-accent new-phrase-button" type="button" onClick={() => setPhrases((current) => [...current, createPhrase(true)])}>+ Nova frase</button><span className="status-dot">Alterações salvas no navegador</span></div></div><article className="music-sheet"><div className="sheet-title-wrap"><input className="sheet-title" value={activePage.title} type="text" placeholder={`Página ${activePageIndex + 1}`} aria-label="Título da folha" onChange={(event) => setTitle(event.target.value)} /><div className="title-underline"></div></div><div className="phrases" aria-label="Frases musicais">{items}</div></article></section>
     </section>
-  </main>;
+  </main>{multiSelectionActive && <MultiPhrasePlayer phrases={phrases} selectedIndices={selectedPhraseIndices} onReorder={reorderSelectedPhrases} />}</>;
 }
 
 const rootElement = document.getElementById('root');
