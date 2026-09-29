@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { useSpeak, useVoices } from 'react-text-to-speech';
 import * as Tone from 'tone';
 
+const tuSoundUrl = '/Sons/Tu.wav';
+const tcháSoundUrl = '/Sons/Tchá.wav';
+const tumSoundUrl = '/Sons/Tum.wav';
+
 const defaultPalette = { title: '#16233f', symbol: '#16233f', upper: '#2a5578', lower: '#16233f' };
 const legacyDefaultPalette = { title: '#111111', symbol: '#111111', upper: '#e92d3d', lower: '#111111' };
 const knownDefaultPalettes = [
@@ -308,6 +312,8 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
   const toneSequenceRef = useRef(null);
   const drumBuffersRef = useRef(null);
   const zabumbaBuffersRef = useRef(null);
+  const phraseRef = useRef(phrase);
+  phraseRef.current = phrase;
   const { speak, stop: stopSpeech } = useSpeak({
     preserveUtteranceQueue: false,
     onStart: () => {}
@@ -357,30 +363,26 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
     }
   };
   /**
-   * Gera (uma vez) e memoriza os buffers de áudio dos timbres de zabumba (preso, aberto, agudo).
-   * @returns {{preso: AudioBuffer, aberto: AudioBuffer, agudo: AudioBuffer}}
+   * Carrega (uma vez) e memoriza os arquivos de áudio dos timbres de zabumba.
+   * @returns {Promise<{preso: AudioBuffer, aberto: AudioBuffer, agudo: AudioBuffer}>}
    */
-  const prepareZabumbaBuffers = () => {
+  const prepareZabumbaBuffers = async () => {
     if (zabumbaBuffersRef.current) return zabumbaBuffersRef.current;
     const audioContext = Tone.getContext().rawContext;
-    const specs = {
-      preso: { frequency: 95, duration: 0.09, decay: 55, noise: 0.35 },
-      aberto: { frequency: 88, duration: 0.34, decay: 14, noise: 0.3 },
-      agudo: { frequency: 340, duration: 0.12, decay: 40, noise: 0.55 }
+    const soundUrls = {
+      preso: tuSoundUrl,
+      aberto: tumSoundUrl,
+      agudo: tcháSoundUrl
     };
-    zabumbaBuffersRef.current = Object.entries(specs).reduce((buffers, [tone, spec]) => {
-      const buffer = audioContext.createBuffer(1, Math.ceil(audioContext.sampleRate * spec.duration), audioContext.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let index = 0; index < data.length; index += 1) {
-        const time = index / audioContext.sampleRate;
-        const envelope = Math.exp(-time * spec.decay);
-        const body = Math.sin(2 * Math.PI * spec.frequency * time);
-        const noise = (Math.random() * 2 - 1) * spec.noise;
-        data[index] = (body * (1 - spec.noise) + noise) * envelope;
-      }
-      buffers[tone] = buffer;
+    zabumbaBuffersRef.current = Promise.all(Object.entries(soundUrls).map(async ([tone, url]) => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Não foi possível carregar o som ${tone}.`);
+      return [tone, await audioContext.decodeAudioData(await response.arrayBuffer())];
+    })).then((entries) => {
+      const buffers = Object.fromEntries(entries);
+      zabumbaBuffersRef.current = buffers;
       return buffers;
-    }, {});
+    });
     return zabumbaBuffersRef.current;
   };
   /**
@@ -390,9 +392,8 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
    */
   const playZabumbaHit = (tone, time) => {
     const audioContext = Tone.getContext().rawContext;
-    const buffers = prepareZabumbaBuffers();
     const source = audioContext.createBufferSource();
-    source.buffer = buffers[tone];
+    source.buffer = zabumbaBuffersRef.current[tone];
     source.connect(audioContext.destination);
     source.start(time);
   };
@@ -437,16 +438,19 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
     activePlaybackStop?.();
     activePlaybackStop = stopPlayback;
     await Tone.start();
+    await prepareZabumbaBuffers();
     window.speechSynthesis?.getVoices();
     Tone.Transport.bpm.value = phrase.bpm;
-    const speechRate = Math.min(10, Math.max(2, phrase.bpm / 20));
     const playbackCells = phrase.noteMode ? phrase.noteCells.slice(0, phrase.beatCount * 4) : phrase.cells;
     const values = playbackCells.map((_, index) => index);
     // subdivisão de 16 avos, pois cada célula equivale a um tempo dividido em 4
     const sequence = new Tone.Sequence((time, index) => {
-      const cell = playbackCells[index];
+      const currentPhrase = phraseRef.current;
+      const currentCells = currentPhrase.noteMode ? currentPhrase.noteCells : currentPhrase.cells;
+      const cell = currentCells[index];
+      if (!cell) return;
       Tone.Draw.schedule(() => setActiveCellIndex(index), time);
-      if (phrase.noteMode) {
+      if (currentPhrase.noteMode) {
         playDrumHit(cell.state, time);
         return;
       }
@@ -456,6 +460,7 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
         return;
       }
       const narration = narrationForCell(cell);
+      const speechRate = Math.min(10, Math.max(2, currentPhrase.bpm / 20));
       Tone.Draw.schedule(() => {
         stopSpeech();
         if (narration) speak(narration, { lang: 'pt-BR', voiceURI: portugueseVoice?.voiceURI, rate: speechRate, volume: 1 });
@@ -466,6 +471,9 @@ function Phrase({ phrase, phraseIndex, phraseCount, onChange, onAddToGroup, onDu
     setIsPlaying(true);
   };
   useEffect(() => stopPlayback, []);
+  useEffect(() => {
+    if (isPlaying) Tone.Transport.bpm.value = phrase.bpm;
+  }, [phrase.bpm, isPlaying]);
   useEffect(() => { setBpmInput(String(phrase.bpm)); }, [phrase.bpm]);
   return <section className={`phrase${phrase.noteMode ? ' note-mode' : ''}`} style={style}>
     <div className="phrase-header">
